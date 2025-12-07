@@ -162,7 +162,7 @@ export type UpdateIngredient = z.infer<typeof updateIngredientSchema>;
 // ============ RECIPES ============
 export const recipes = pgTable("recipes", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   yield: integer("yield").default(1),
   yieldUnit: text("yield_unit").default("un"),
@@ -201,7 +201,7 @@ export type InsertRecipeItem = z.infer<typeof insertRecipeItemSchema>;
 // ============ EXTENDED RECIPE TYPES ============
 export type RecipeWithItems = Recipe & {
   items: (RecipeItem & { ingredient: Ingredient })[];
-  product: Product;
+  product?: Product | null;
   totalCost: number;
   costPerUnit: number;
 };
