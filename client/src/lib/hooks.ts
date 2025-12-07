@@ -130,8 +130,9 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: ({ order, items }: { order: InsertOrder; items: Omit<InsertOrderItem, "orderId">[] }) =>
       api.createOrder(order, items),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders", "contact", variables.order.contactId] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
   });
@@ -140,10 +141,13 @@ export function useCreateOrder() {
 export function useUpdateOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: UpdateOrder }) =>
+    mutationFn: ({ id, updates, contactId }: { id: number; updates: UpdateOrder; contactId?: number }) =>
       api.updateOrder(id, updates),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      if (variables.contactId) {
+        queryClient.invalidateQueries({ queryKey: ["orders", "contact", variables.contactId] });
+      }
     },
   });
 }
@@ -151,9 +155,12 @@ export function useUpdateOrder() {
 export function useDeleteOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.deleteOrder(id),
-    onSuccess: () => {
+    mutationFn: ({ id, contactId }: { id: number; contactId?: number }) => api.deleteOrder(id),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      if (variables.contactId) {
+        queryClient.invalidateQueries({ queryKey: ["orders", "contact", variables.contactId] });
+      }
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
   });

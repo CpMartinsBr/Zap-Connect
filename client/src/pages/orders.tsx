@@ -151,9 +151,9 @@ export default function Orders() {
     updateOrder.mutate({ id: orderId, updates: { status } });
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: number, contactId?: number) => {
     if (confirm("Tem certeza que deseja excluir este pedido? O estoque será restaurado.")) {
-      deleteOrder.mutate(id);
+      deleteOrder.mutate({ id, contactId });
       setSelectedOrder(null);
     }
   };
@@ -327,7 +327,7 @@ export default function Orders() {
                 variant="ghost"
                 size="icon"
                 className="text-red-500"
-                onClick={() => handleDelete(selectedOrder.id)}
+                onClick={() => handleDelete(selectedOrder.id, selectedOrder.contactId)}
               >
                 <Trash2 size={18} />
               </Button>
