@@ -229,3 +229,9 @@ export async function deleteRecipe(id: number): Promise<void> {
     method: "DELETE",
   });
 }
+
+export async function createProductFromRecipe(recipeId: number): Promise<Product> {
+  return fetchAPI(`/api/recipes/${recipeId}/create-product`, {
+    method: "POST",
+  });
+}

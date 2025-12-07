@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRecipes, useIngredients, useProducts, useCreateRecipe, useUpdateRecipe, useDeleteRecipe } from "@/lib/hooks";
+import { useRecipes, useIngredients, useProducts, useCreateRecipe, useUpdateRecipe, useDeleteRecipe, useCreateProductFromRecipe } from "@/lib/hooks";
 import type { RecipeWithItems, InsertRecipe, InsertRecipeItem } from "@shared/schema";
 
 interface RecipeFormItem {
@@ -45,6 +45,7 @@ export default function Recipes() {
   const createRecipe = useCreateRecipe();
   const updateRecipe = useUpdateRecipe();
   const deleteRecipe = useDeleteRecipe();
+  const createProductFromRecipe = useCreateProductFromRecipe();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -52,7 +53,7 @@ export default function Recipes() {
   const [deletingRecipe, setDeletingRecipe] = useState<RecipeWithItems | null>(null);
 
   const [formData, setFormData] = useState<Partial<InsertRecipe>>({
-    productId: 0,
+    productId: null,
     name: "",
     yield: 1,
     yieldUnit: "un",
@@ -61,10 +62,12 @@ export default function Recipes() {
   });
   const [recipeItems, setRecipeItems] = useState<RecipeFormItem[]>([]);
 
-  const filteredRecipes = recipes.filter(recipe => 
-    recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    recipe.product?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRecipes = recipes.filter(recipe => {
+    const searchLower = searchTerm.toLowerCase();
+    const nameMatch = recipe.name.toLowerCase().includes(searchLower);
+    const productMatch = recipe.product?.name?.toLowerCase()?.includes(searchLower) ?? false;
+    return nameMatch || productMatch;
+  });
 
   const productsWithoutRecipe = products.filter(
     p => !recipes.some(r => r.productId === p.id) || editingRecipe?.productId === p.id
@@ -72,7 +75,7 @@ export default function Recipes() {
 
   const handleOpenAddDialog = () => {
     setFormData({
-      productId: 0,
+      productId: null,
       name: "",
       yield: 1,
       yieldUnit: "un",
@@ -135,7 +138,7 @@ export default function Recipes() {
   };
 
   const handleSave = () => {
-    if (!formData.productId || !formData.name) return;
+    if (!formData.name) return;
 
     const items: Omit<InsertRecipeItem, "recipeId">[] = recipeItems
       .filter(item => item.ingredientId && parseFloat(item.quantity) > 0)
@@ -190,23 +193,14 @@ export default function Recipes() {
                 <p className="text-sm text-gray-500">Calcule custos de produção dos seus produtos</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {productsWithoutRecipe.length === 0 && products.length === 0 && (
-                <span className="text-sm text-amber-600">Cadastre produtos no Estoque primeiro</span>
-              )}
-              {productsWithoutRecipe.length === 0 && products.length > 0 && (
-                <span className="text-sm text-gray-500">Todos os produtos já têm receita</span>
-              )}
-              <Button 
-                data-testid="btn-add-recipe"
-                onClick={handleOpenAddDialog}
-                className="bg-[#25D366] hover:bg-[#1fb855]"
-                disabled={productsWithoutRecipe.length === 0}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Receita
-              </Button>
-            </div>
+            <Button 
+              data-testid="btn-add-recipe"
+              onClick={handleOpenAddDialog}
+              className="bg-[#25D366] hover:bg-[#1fb855]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Receita
+            </Button>
           </div>
         </div>
 
@@ -291,9 +285,23 @@ export default function Recipes() {
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg">{recipe.name}</CardTitle>
-                          <p className="text-sm text-gray-500">
-                            Produto: {recipe.product?.name || "N/A"}
-                          </p>
+                          {recipe.product ? (
+                            <p className="text-sm text-gray-500">
+                              Produto: {recipe.product.name}
+                            </p>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-1 text-xs"
+                              data-testid={`btn-create-product-${recipe.id}`}
+                              onClick={() => createProductFromRecipe.mutate(recipe.id)}
+                              disabled={createProductFromRecipe.isPending}
+                            >
+                              <Package className="w-3 h-3 mr-1" />
+                              {createProductFromRecipe.isPending ? "Gerando..." : "Gerar Produto no Estoque"}
+                            </Button>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button 
@@ -369,43 +377,42 @@ export default function Recipes() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Produto *</Label>
-                <Select 
-                  value={formData.productId?.toString()} 
-                  onValueChange={(value) => {
-                    const product = products.find(p => p.id === parseInt(value));
-                    setFormData({ 
-                      ...formData, 
-                      productId: parseInt(value),
-                      name: product?.name || formData.name,
-                    });
-                  }}
-                  disabled={!!editingRecipe}
-                >
-                  <SelectTrigger data-testid="select-recipe-product">
-                    <SelectValue placeholder="Selecione o produto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(editingRecipe ? products : productsWithoutRecipe).map((product) => (
-                      <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Nome da Receita *</Label>
+              <Input
+                data-testid="input-recipe-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Ex: Bolo de Chocolate"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label>Nome da Receita *</Label>
-                <Input
-                  data-testid="input-recipe-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Bolo de Chocolate"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Vincular a Produto (opcional)</Label>
+              <Select 
+                value={formData.productId?.toString() || ""} 
+                onValueChange={(value) => {
+                  setFormData({ 
+                    ...formData, 
+                    productId: value ? parseInt(value) : null,
+                  });
+                }}
+                disabled={!!editingRecipe && !!editingRecipe.productId}
+              >
+                <SelectTrigger data-testid="select-recipe-product">
+                  <SelectValue placeholder="Selecione um produto (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {productsWithoutRecipe.map((product) => (
+                    <SelectItem key={product.id} value={product.id.toString()}>
+                      {product.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Você pode criar a receita primeiro e gerar o produto depois.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -548,7 +555,7 @@ export default function Recipes() {
             <Button 
               data-testid="btn-save-recipe"
               onClick={handleSave}
-              disabled={!formData.productId || !formData.name || createRecipe.isPending || updateRecipe.isPending}
+              disabled={!formData.name || createRecipe.isPending || updateRecipe.isPending}
               className="bg-[#25D366] hover:bg-[#1fb855]"
             >
               {(createRecipe.isPending || updateRecipe.isPending) ? "Salvando..." : "Salvar"}

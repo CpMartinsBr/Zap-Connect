@@ -259,3 +259,14 @@ export function useDeleteRecipe() {
     },
   });
 }
+
+export function useCreateProductFromRecipe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (recipeId: number) => api.createProductFromRecipe(recipeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
