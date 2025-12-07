@@ -79,6 +79,7 @@ export interface IStorage {
   createRecipe(recipe: InsertRecipe, items: InsertRecipeItem[]): Promise<Recipe>;
   updateRecipe(id: number, updates: UpdateRecipe, items?: InsertRecipeItem[]): Promise<Recipe | undefined>;
   deleteRecipe(id: number): Promise<void>;
+  createProductFromRecipe(recipeId: number): Promise<Product>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -423,7 +424,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    const product = await this.getProduct(recipe.productId);
+    const product = recipe.productId ? await this.getProduct(recipe.productId) : null;
     
     // Calculate total cost
     let totalCost = 0;
@@ -441,7 +442,7 @@ export class DatabaseStorage implements IStorage {
     return {
       ...recipe,
       items: itemsWithIngredients,
-      product: product!,
+      product: product,
       totalCost,
       costPerUnit,
     };
@@ -491,6 +492,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRecipe(id: number): Promise<void> {
     await db.delete(schema.recipes).where(eq(schema.recipes.id, id));
+  }
+
+  async createProductFromRecipe(recipeId: number): Promise<Product> {
+    const recipe = await this.getRecipe(recipeId);
+    if (!recipe) {
+      throw new Error("Receita não encontrada");
+    }
+
+    if (recipe.productId) {
+      throw new Error("Esta receita já está vinculada a um produto");
+    }
+
+    const newProduct = await this.createProduct({
+      name: recipe.name,
+      description: `Produto criado a partir da receita: ${recipe.name}`,
+      category: "Produto",
+      unit: recipe.yieldUnit || "un",
+      price: "0",
+      cost: recipe.costPerUnit.toFixed(2),
+      stock: 0,
+      minStock: 5,
+      active: 1,
+    });
+
+    await db
+      .update(schema.recipes)
+      .set({ productId: newProduct.id, updatedAt: new Date() })
+      .where(eq(schema.recipes.id, recipeId));
+
+    return newProduct;
   }
 }
 
