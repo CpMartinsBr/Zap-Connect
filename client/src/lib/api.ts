@@ -1,4 +1,19 @@
-import type { ContactWithLastMessage, Contact, InsertContact, UpdateContact, Message, InsertMessage } from "@shared/schema";
+import type { 
+  ContactWithLastMessage, 
+  Contact, 
+  InsertContact, 
+  UpdateContact, 
+  Message, 
+  InsertMessage,
+  Product,
+  InsertProduct,
+  UpdateProduct,
+  Order,
+  InsertOrder,
+  UpdateOrder,
+  OrderWithItems,
+  InsertOrderItem,
+} from "@shared/schema";
 
 async function fetchAPI(url: string, options?: RequestInit) {
   const response = await fetch(url, {
@@ -21,6 +36,7 @@ async function fetchAPI(url: string, options?: RequestInit) {
   return response.json();
 }
 
+// ============ CONTACTS ============
 export async function getContacts(): Promise<ContactWithLastMessage[]> {
   return fetchAPI("/api/contacts");
 }
@@ -49,6 +65,7 @@ export async function deleteContact(id: number): Promise<void> {
   });
 }
 
+// ============ MESSAGES ============
 export async function getMessages(contactId: number): Promise<Message[]> {
   return fetchAPI(`/api/contacts/${contactId}/messages`);
 }
@@ -57,5 +74,77 @@ export async function sendMessage(message: InsertMessage): Promise<Message> {
   return fetchAPI("/api/messages", {
     method: "POST",
     body: JSON.stringify(message),
+  });
+}
+
+// ============ PRODUCTS ============
+export async function getProducts(): Promise<Product[]> {
+  return fetchAPI("/api/products");
+}
+
+export async function getProduct(id: number): Promise<Product> {
+  return fetchAPI(`/api/products/${id}`);
+}
+
+export async function createProduct(product: InsertProduct): Promise<Product> {
+  return fetchAPI("/api/products", {
+    method: "POST",
+    body: JSON.stringify(product),
+  });
+}
+
+export async function updateProduct(id: number, updates: UpdateProduct): Promise<Product> {
+  return fetchAPI(`/api/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function updateStock(id: number, quantity: number): Promise<Product> {
+  return fetchAPI(`/api/products/${id}/stock`, {
+    method: "PATCH",
+    body: JSON.stringify({ quantity }),
+  });
+}
+
+export async function deleteProduct(id: number): Promise<void> {
+  return fetchAPI(`/api/products/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============ ORDERS ============
+export async function getOrders(): Promise<OrderWithItems[]> {
+  return fetchAPI("/api/orders");
+}
+
+export async function getOrder(id: number): Promise<OrderWithItems> {
+  return fetchAPI(`/api/orders/${id}`);
+}
+
+export async function getOrdersByContact(contactId: number): Promise<OrderWithItems[]> {
+  return fetchAPI(`/api/contacts/${contactId}/orders`);
+}
+
+export async function createOrder(
+  order: InsertOrder, 
+  items: Omit<InsertOrderItem, "orderId">[]
+): Promise<Order> {
+  return fetchAPI("/api/orders", {
+    method: "POST",
+    body: JSON.stringify({ order, items }),
+  });
+}
+
+export async function updateOrder(id: number, updates: UpdateOrder): Promise<Order> {
+  return fetchAPI(`/api/orders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteOrder(id: number): Promise<void> {
+  return fetchAPI(`/api/orders/${id}`, {
+    method: "DELETE",
   });
 }
