@@ -18,6 +18,15 @@ import type {
   OrderItem,
   InsertOrderItem,
   OrderWithItems,
+  Ingredient,
+  InsertIngredient,
+  UpdateIngredient,
+  Recipe,
+  InsertRecipe,
+  UpdateRecipe,
+  RecipeItem,
+  InsertRecipeItem,
+  RecipeWithItems,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -55,6 +64,21 @@ export interface IStorage {
   createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order>;
   updateOrder(id: number, updates: UpdateOrder): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<void>;
+
+  // Ingredients
+  getAllIngredients(): Promise<Ingredient[]>;
+  getIngredient(id: number): Promise<Ingredient | undefined>;
+  createIngredient(ingredient: InsertIngredient): Promise<Ingredient>;
+  updateIngredient(id: number, updates: UpdateIngredient): Promise<Ingredient | undefined>;
+  deleteIngredient(id: number): Promise<void>;
+
+  // Recipes
+  getAllRecipes(): Promise<RecipeWithItems[]>;
+  getRecipe(id: number): Promise<RecipeWithItems | undefined>;
+  getRecipeByProduct(productId: number): Promise<RecipeWithItems | undefined>;
+  createRecipe(recipe: InsertRecipe, items: InsertRecipeItem[]): Promise<Recipe>;
+  updateRecipe(id: number, updates: UpdateRecipe, items?: InsertRecipeItem[]): Promise<Recipe | undefined>;
+  deleteRecipe(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -309,6 +333,164 @@ export class DatabaseStorage implements IStorage {
     }
 
     await db.delete(schema.orders).where(eq(schema.orders.id, id));
+  }
+
+  // ============ INGREDIENTS ============
+  async getAllIngredients(): Promise<Ingredient[]> {
+    return await db
+      .select()
+      .from(schema.ingredients)
+      .orderBy(asc(schema.ingredients.name));
+  }
+
+  async getIngredient(id: number): Promise<Ingredient | undefined> {
+    const results = await db
+      .select()
+      .from(schema.ingredients)
+      .where(eq(schema.ingredients.id, id))
+      .limit(1);
+    return results[0];
+  }
+
+  async createIngredient(ingredient: InsertIngredient): Promise<Ingredient> {
+    const results = await db
+      .insert(schema.ingredients)
+      .values(ingredient)
+      .returning();
+    return results[0];
+  }
+
+  async updateIngredient(
+    id: number,
+    updates: UpdateIngredient
+  ): Promise<Ingredient | undefined> {
+    const results = await db
+      .update(schema.ingredients)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.ingredients.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteIngredient(id: number): Promise<void> {
+    await db.delete(schema.ingredients).where(eq(schema.ingredients.id, id));
+  }
+
+  // ============ RECIPES ============
+  async getAllRecipes(): Promise<RecipeWithItems[]> {
+    const allRecipes = await db
+      .select()
+      .from(schema.recipes)
+      .orderBy(asc(schema.recipes.name));
+
+    return await Promise.all(
+      allRecipes.map(async (recipe) => this.enrichRecipe(recipe))
+    );
+  }
+
+  async getRecipe(id: number): Promise<RecipeWithItems | undefined> {
+    const results = await db
+      .select()
+      .from(schema.recipes)
+      .where(eq(schema.recipes.id, id))
+      .limit(1);
+    
+    if (!results[0]) return undefined;
+    return this.enrichRecipe(results[0]);
+  }
+
+  async getRecipeByProduct(productId: number): Promise<RecipeWithItems | undefined> {
+    const results = await db
+      .select()
+      .from(schema.recipes)
+      .where(eq(schema.recipes.productId, productId))
+      .limit(1);
+    
+    if (!results[0]) return undefined;
+    return this.enrichRecipe(results[0]);
+  }
+
+  private async enrichRecipe(recipe: Recipe): Promise<RecipeWithItems> {
+    const items = await db
+      .select()
+      .from(schema.recipeItems)
+      .where(eq(schema.recipeItems.recipeId, recipe.id));
+
+    const itemsWithIngredients = await Promise.all(
+      items.map(async (item) => {
+        const ingredient = await this.getIngredient(item.ingredientId);
+        return { ...item, ingredient: ingredient! };
+      })
+    );
+
+    const product = await this.getProduct(recipe.productId);
+    
+    // Calculate total cost
+    let totalCost = 0;
+    for (const item of itemsWithIngredients) {
+      if (item.ingredient) {
+        const ingredientCost = parseFloat(item.ingredient.costPerUnit || "0");
+        const quantity = parseFloat(item.quantity || "0");
+        totalCost += ingredientCost * quantity;
+      }
+    }
+    
+    const yieldQty = recipe.yield || 1;
+    const costPerUnit = totalCost / yieldQty;
+
+    return {
+      ...recipe,
+      items: itemsWithIngredients,
+      product: product!,
+      totalCost,
+      costPerUnit,
+    };
+  }
+
+  async createRecipe(recipe: InsertRecipe, items: InsertRecipeItem[]): Promise<Recipe> {
+    const [newRecipe] = await db
+      .insert(schema.recipes)
+      .values(recipe)
+      .returning();
+
+    for (const item of items) {
+      await db.insert(schema.recipeItems).values({
+        ...item,
+        recipeId: newRecipe.id,
+      });
+    }
+
+    return newRecipe;
+  }
+
+  async updateRecipe(
+    id: number,
+    updates: UpdateRecipe,
+    items?: InsertRecipeItem[]
+  ): Promise<Recipe | undefined> {
+    const results = await db
+      .update(schema.recipes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.recipes.id, id))
+      .returning();
+
+    if (results[0] && items) {
+      // Delete existing items and insert new ones
+      await db.delete(schema.recipeItems).where(eq(schema.recipeItems.recipeId, id));
+      
+      for (const item of items) {
+        await db.insert(schema.recipeItems).values({
+          ...item,
+          recipeId: id,
+        });
+      }
+    }
+
+    return results[0];
+  }
+
+  async deleteRecipe(id: number): Promise<void> {
+    await db.delete(schema.recipes).where(eq(schema.recipes.id, id));
   }
 }
 

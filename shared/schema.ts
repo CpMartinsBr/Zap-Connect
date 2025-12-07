@@ -133,3 +133,75 @@ export type OrderWithItems = Order & {
 };
 
 export type ProductCategory = "Bolo" | "Doce" | "Salgado" | "Bebida" | "Ingrediente" | "Produto";
+
+// ============ INGREDIENTS ============
+export const ingredients = pgTable("ingredients", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  unit: text("unit").notNull().default("g"),
+  costPerUnit: numeric("cost_per_unit", { precision: 10, scale: 4 }).notNull().default("0"),
+  stock: numeric("stock", { precision: 10, scale: 2 }).default("0"),
+  minStock: numeric("min_stock", { precision: 10, scale: 2 }).default("100"),
+  supplier: text("supplier"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertIngredientSchema = createInsertSchema(ingredients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateIngredientSchema = insertIngredientSchema.partial();
+
+export type Ingredient = typeof ingredients.$inferSelect;
+export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
+export type UpdateIngredient = z.infer<typeof updateIngredientSchema>;
+
+// ============ RECIPES ============
+export const recipes = pgTable("recipes", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  yield: integer("yield").default(1),
+  yieldUnit: text("yield_unit").default("un"),
+  instructions: text("instructions"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRecipeSchema = createInsertSchema(recipes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateRecipeSchema = insertRecipeSchema.partial();
+
+export type Recipe = typeof recipes.$inferSelect;
+export type InsertRecipe = z.infer<typeof insertRecipeSchema>;
+export type UpdateRecipe = z.infer<typeof updateRecipeSchema>;
+
+// ============ RECIPE ITEMS (Ingredients in Recipes) ============
+export const recipeItems = pgTable("recipe_items", {
+  id: serial("id").primaryKey(),
+  recipeId: integer("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  quantity: numeric("quantity", { precision: 10, scale: 4 }).notNull(),
+});
+
+export const insertRecipeItemSchema = createInsertSchema(recipeItems).omit({
+  id: true,
+});
+
+export type RecipeItem = typeof recipeItems.$inferSelect;
+export type InsertRecipeItem = z.infer<typeof insertRecipeItemSchema>;
+
+// ============ EXTENDED RECIPE TYPES ============
+export type RecipeWithItems = Recipe & {
+  items: (RecipeItem & { ingredient: Ingredient })[];
+  product: Product;
+  totalCost: number;
+  costPerUnit: number;
+};

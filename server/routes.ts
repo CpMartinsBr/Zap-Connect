@@ -10,6 +10,11 @@ import {
   insertOrderSchema,
   updateOrderSchema,
   insertOrderItemSchema,
+  insertIngredientSchema,
+  updateIngredientSchema,
+  insertRecipeSchema,
+  updateRecipeSchema,
+  insertRecipeItemSchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -258,6 +263,159 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       await storage.deleteOrder(id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ INGREDIENTS ============
+  app.get("/api/ingredients", async (req, res) => {
+    try {
+      const ingredients = await storage.getAllIngredients();
+      res.json(ingredients);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/ingredients/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ingredient = await storage.getIngredient(id);
+      if (!ingredient) {
+        return res.status(404).json({ error: "Ingredient not found" });
+      }
+      res.json(ingredient);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ingredients", async (req, res) => {
+    try {
+      const validatedData = insertIngredientSchema.parse(req.body);
+      const ingredient = await storage.createIngredient(validatedData);
+      res.status(201).json(ingredient);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/ingredients/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = updateIngredientSchema.parse(req.body);
+      const ingredient = await storage.updateIngredient(id, validatedData);
+      if (!ingredient) {
+        return res.status(404).json({ error: "Ingredient not found" });
+      }
+      res.json(ingredient);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/ingredients/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteIngredient(id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ RECIPES ============
+  app.get("/api/recipes", async (req, res) => {
+    try {
+      const recipes = await storage.getAllRecipes();
+      res.json(recipes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/recipes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const recipe = await storage.getRecipe(id);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/products/:id/recipe", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const recipe = await storage.getRecipeByProduct(productId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found for this product" });
+      }
+      res.json(recipe);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  const createRecipeSchema = z.object({
+    recipe: insertRecipeSchema,
+    items: z.array(insertRecipeItemSchema.omit({ recipeId: true })),
+  });
+
+  app.post("/api/recipes", async (req, res) => {
+    try {
+      const { recipe, items } = createRecipeSchema.parse(req.body);
+      const newRecipe = await storage.createRecipe(recipe, items.map(item => ({ ...item, recipeId: 0 })));
+      res.status(201).json(newRecipe);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  const updateRecipeWithItemsSchema = z.object({
+    recipe: updateRecipeSchema,
+    items: z.array(insertRecipeItemSchema.omit({ recipeId: true })).optional(),
+  });
+
+  app.patch("/api/recipes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { recipe: updates, items } = updateRecipeWithItemsSchema.parse(req.body);
+      const recipe = await storage.updateRecipe(
+        id, 
+        updates, 
+        items ? items.map(item => ({ ...item, recipeId: id })) : undefined
+      );
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/recipes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteRecipe(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });

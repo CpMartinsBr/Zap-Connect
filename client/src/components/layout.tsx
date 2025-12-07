@@ -1,10 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Package, ShoppingCart, BarChart3 } from "lucide-react";
+import { MessageCircle, Package, ShoppingCart, BarChart3, Wheat, BookOpen } from "lucide-react";
 
 const navItems = [
   { path: "/", icon: MessageCircle, label: "Conversas" },
   { path: "/estoque", icon: Package, label: "Estoque" },
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
+  { path: "/ingredientes", icon: Wheat, label: "Ingredientes" },
+  { path: "/receitas", icon: BookOpen, label: "Receitas" },
 ];
 
 interface LayoutProps {

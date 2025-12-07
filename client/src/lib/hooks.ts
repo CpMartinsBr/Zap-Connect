@@ -9,6 +9,11 @@ import type {
   InsertOrder,
   UpdateOrder,
   InsertOrderItem,
+  InsertIngredient,
+  UpdateIngredient,
+  InsertRecipe,
+  UpdateRecipe,
+  InsertRecipeItem,
 } from "@shared/schema";
 
 // ============ CONTACTS ============
@@ -162,6 +167,95 @@ export function useDeleteOrder() {
         queryClient.invalidateQueries({ queryKey: ["orders", "contact", variables.contactId] });
       }
       queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+// ============ INGREDIENTS ============
+export function useIngredients() {
+  return useQuery({
+    queryKey: ["ingredients"],
+    queryFn: api.getIngredients,
+  });
+}
+
+export function useCreateIngredient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ingredient: InsertIngredient) => api.createIngredient(ingredient),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ingredients"] });
+    },
+  });
+}
+
+export function useUpdateIngredient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: UpdateIngredient }) =>
+      api.updateIngredient(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ingredients"] });
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+    },
+  });
+}
+
+export function useDeleteIngredient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteIngredient(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ingredients"] });
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+    },
+  });
+}
+
+// ============ RECIPES ============
+export function useRecipes() {
+  return useQuery({
+    queryKey: ["recipes"],
+    queryFn: api.getRecipes,
+  });
+}
+
+export function useRecipeByProduct(productId: number | null) {
+  return useQuery({
+    queryKey: ["recipes", "product", productId],
+    queryFn: () => productId ? api.getRecipeByProduct(productId) : Promise.resolve(null),
+    enabled: !!productId,
+  });
+}
+
+export function useCreateRecipe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recipe, items }: { recipe: InsertRecipe; items: Omit<InsertRecipeItem, "recipeId">[] }) =>
+      api.createRecipe(recipe, items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+    },
+  });
+}
+
+export function useUpdateRecipe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, updates, items }: { id: number; updates: UpdateRecipe; items?: Omit<InsertRecipeItem, "recipeId">[] }) =>
+      api.updateRecipe(id, updates, items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+    },
+  });
+}
+
+export function useDeleteRecipe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteRecipe(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
     },
   });
 }

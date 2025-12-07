@@ -13,6 +13,14 @@ import type {
   UpdateOrder,
   OrderWithItems,
   InsertOrderItem,
+  Ingredient,
+  InsertIngredient,
+  UpdateIngredient,
+  Recipe,
+  InsertRecipe,
+  UpdateRecipe,
+  RecipeWithItems,
+  InsertRecipeItem,
 } from "@shared/schema";
 
 async function fetchAPI(url: string, options?: RequestInit) {
@@ -145,6 +153,79 @@ export async function updateOrder(id: number, updates: UpdateOrder): Promise<Ord
 
 export async function deleteOrder(id: number): Promise<void> {
   return fetchAPI(`/api/orders/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============ INGREDIENTS ============
+export async function getIngredients(): Promise<Ingredient[]> {
+  return fetchAPI("/api/ingredients");
+}
+
+export async function getIngredient(id: number): Promise<Ingredient> {
+  return fetchAPI(`/api/ingredients/${id}`);
+}
+
+export async function createIngredient(ingredient: InsertIngredient): Promise<Ingredient> {
+  return fetchAPI("/api/ingredients", {
+    method: "POST",
+    body: JSON.stringify(ingredient),
+  });
+}
+
+export async function updateIngredient(id: number, updates: UpdateIngredient): Promise<Ingredient> {
+  return fetchAPI(`/api/ingredients/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteIngredient(id: number): Promise<void> {
+  return fetchAPI(`/api/ingredients/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============ RECIPES ============
+export async function getRecipes(): Promise<RecipeWithItems[]> {
+  return fetchAPI("/api/recipes");
+}
+
+export async function getRecipe(id: number): Promise<RecipeWithItems> {
+  return fetchAPI(`/api/recipes/${id}`);
+}
+
+export async function getRecipeByProduct(productId: number): Promise<RecipeWithItems | null> {
+  try {
+    return await fetchAPI(`/api/products/${productId}/recipe`);
+  } catch {
+    return null;
+  }
+}
+
+export async function createRecipe(
+  recipe: InsertRecipe, 
+  items: Omit<InsertRecipeItem, "recipeId">[]
+): Promise<Recipe> {
+  return fetchAPI("/api/recipes", {
+    method: "POST",
+    body: JSON.stringify({ recipe, items }),
+  });
+}
+
+export async function updateRecipe(
+  id: number, 
+  updates: UpdateRecipe, 
+  items?: Omit<InsertRecipeItem, "recipeId">[]
+): Promise<Recipe> {
+  return fetchAPI(`/api/recipes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ recipe: updates, items }),
+  });
+}
+
+export async function deleteRecipe(id: number): Promise<void> {
+  return fetchAPI(`/api/recipes/${id}`, {
     method: "DELETE",
   });
 }
