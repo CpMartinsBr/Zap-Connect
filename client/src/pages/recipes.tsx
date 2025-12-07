@@ -190,15 +190,23 @@ export default function Recipes() {
                 <p className="text-sm text-gray-500">Calcule custos de produção dos seus produtos</p>
               </div>
             </div>
-            <Button 
-              data-testid="btn-add-recipe"
-              onClick={handleOpenAddDialog}
-              className="bg-[#25D366] hover:bg-[#1fb855]"
-              disabled={productsWithoutRecipe.length === 0}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Receita
-            </Button>
+            <div className="flex items-center gap-2">
+              {productsWithoutRecipe.length === 0 && products.length === 0 && (
+                <span className="text-sm text-amber-600">Cadastre produtos no Estoque primeiro</span>
+              )}
+              {productsWithoutRecipe.length === 0 && products.length > 0 && (
+                <span className="text-sm text-gray-500">Todos os produtos já têm receita</span>
+              )}
+              <Button 
+                data-testid="btn-add-recipe"
+                onClick={handleOpenAddDialog}
+                className="bg-[#25D366] hover:bg-[#1fb855]"
+                disabled={productsWithoutRecipe.length === 0}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Receita
+              </Button>
+            </div>
           </div>
         </div>
 
