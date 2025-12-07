@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 **Code Organization**
 - `/client/src/components` - Reusable UI components including chat interface, CRM panel, and layout
 - `/client/src/components/ui` - Shadcn/ui component library
-- `/client/src/pages` - Route-based page components (home, inventory, orders)
+- `/client/src/pages` - Route-based page components (home, inventory, orders, ingredients, recipes)
 - `/client/src/lib` - Utility functions, API client, and custom hooks
 - `/client/src/hooks` - Reusable React hooks
 - Path aliases configured for clean imports (@/, @shared/, @assets/)
@@ -51,7 +51,7 @@ Preferred communication style: Simple, everyday language.
 - TypeScript for type safety across the entire stack
 
 **API Design**
-- RESTful endpoints organized by resource type (contacts, messages, products, orders)
+- RESTful endpoints organized by resource type (contacts, messages, products, orders, ingredients, recipes)
 - CRUD operations for all main entities
 - JSON request/response format
 - Zod validation on all incoming data using schemas derived from Drizzle ORM
@@ -88,6 +88,9 @@ Preferred communication style: Simple, everyday language.
 - **Products**: Inventory items with name, description, category, price, stock quantity, unit, and SKU
 - **Orders**: Customer orders with contact reference, status, total, delivery date, and notes
 - **Order Items**: Join table linking orders to products with quantity and unit price
+- **Ingredients**: Raw materials with name, unit, cost per unit, stock levels, minimum stock alerts, supplier info, and notes
+- **Recipes**: Product recipes with name, yield, yield unit, instructions, notes, and automatic cost calculation
+- **Recipe Items**: Join table linking recipes to ingredients with quantity for cost aggregation
 
 **Type Safety**
 - Drizzle-zod integration generates Zod schemas from database schema
@@ -98,7 +101,9 @@ Preferred communication style: Simple, everyday language.
 - One-to-many: Contact → Messages
 - One-to-many: Contact → Orders
 - Many-to-many: Orders ↔ Products (through OrderItems)
-- Cascading deletes configured where appropriate (e.g., deleting contact removes messages)
+- One-to-one: Product → Recipe (optional, for products with recipes)
+- Many-to-many: Recipes ↔ Ingredients (through RecipeItems)
+- Cascading deletes configured where appropriate (e.g., deleting contact removes messages, deleting recipe removes recipeItems)
 
 ### Build and Deployment
 
