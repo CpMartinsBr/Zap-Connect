@@ -422,5 +422,15 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/recipes/:id/create-product", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const product = await storage.createProductFromRecipe(id);
+      res.status(201).json(product);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
