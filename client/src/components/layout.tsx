@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Package, ShoppingCart, BarChart3, Wheat, BookOpen } from "lucide-react";
+import { MessageCircle, Package, ShoppingCart, Wheat, BookOpen, LogOut, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { path: "/", icon: MessageCircle, label: "Conversas" },
@@ -11,6 +12,27 @@ const navItems = [
 
 interface LayoutProps {
   children: React.ReactNode;
+}
+
+function UserInfo() {
+  const { user } = useAuth();
+  
+  return (
+    <div className="relative w-12 h-12 flex items-center justify-center rounded-lg cursor-pointer text-gray-400 hover:bg-gray-700 hover:text-white transition-all group">
+      {user?.profileImageUrl ? (
+        <img 
+          src={user.profileImageUrl} 
+          alt="Perfil" 
+          className="w-8 h-8 rounded-full object-cover"
+        />
+      ) : (
+        <User size={22} />
+      )}
+      <span className="absolute left-14 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+        {user?.firstName || user?.email || "Minha conta"}
+      </span>
+    </div>
+  );
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -50,14 +72,16 @@ export function Layout({ children }: LayoutProps) {
           );
         })}
         
-        <div className="mt-auto">
+        <div className="mt-auto flex flex-col gap-1">
+          <UserInfo />
           <div 
-            data-testid="nav-stats"
-            className="w-12 h-12 flex items-center justify-center rounded-lg cursor-pointer text-gray-400 hover:bg-gray-700 hover:text-white transition-all group"
+            data-testid="nav-logout"
+            onClick={() => window.location.href = "/api/logout"}
+            className="w-12 h-12 flex items-center justify-center rounded-lg cursor-pointer text-gray-400 hover:bg-red-600 hover:text-white transition-all group"
           >
-            <BarChart3 size={22} />
+            <LogOut size={22} />
             <span className="absolute left-14 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-              Estatísticas
+              Sair
             </span>
           </div>
         </div>

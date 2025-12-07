@@ -3,6 +3,8 @@ import pg from "pg";
 import { eq, desc, sql, asc } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type {
+  User,
+  UpsertUser,
   Contact,
   InsertContact,
   UpdateContact,
@@ -38,6 +40,10 @@ const pool = new Pool({
 const db = drizzle(pool, { schema });
 
 export interface IStorage {
+  // Users (Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+
   // Contacts
   getAllContacts(): Promise<ContactWithLastMessage[]>;
   getContact(id: number): Promise<Contact | undefined>;
@@ -83,6 +89,27 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // ============ USERS (Replit Auth) ============
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(schema.users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: schema.users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   // ============ CONTACTS ============
   async getAllContacts(): Promise<ContactWithLastMessage[]> {
     const allContacts = await db
