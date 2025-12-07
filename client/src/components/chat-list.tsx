@@ -4,12 +4,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Contact, DealStage } from "@/lib/mock-data";
+import type { ContactWithLastMessage, DealStage } from "@shared/schema";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
 interface ChatListProps {
-  contacts: Contact[];
+  contacts: ContactWithLastMessage[];
   selectedContactId: number | null;
   onSelectContact: (id: number) => void;
 }
@@ -76,7 +75,7 @@ export function ChatList({ contacts, selectedContactId, onSelectContact }: ChatL
               )}
             >
               <Avatar className="w-12 h-12">
-                <AvatarImage src={contact.avatar} />
+                <AvatarImage src={contact.avatar || undefined} />
                 <AvatarFallback>{contact.name.substring(0, 2)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -89,7 +88,7 @@ export function ChatList({ contacts, selectedContactId, onSelectContact }: ChatL
                     {contact.lastMessage}
                   </p>
                   <div className="flex gap-1">
-                     <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide", STAGE_COLORS[contact.stage])}>
+                     <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide", STAGE_COLORS[contact.stage as DealStage])}>
                         {contact.stage}
                      </span>
                     {contact.unreadCount && contact.unreadCount > 0 && (

@@ -4,14 +4,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Contact, Message } from "@/lib/mock-data";
+import type { ContactWithLastMessage, Message } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import chatBackground from "@assets/generated_images/subtle_doodle_pattern_for_chat_background.png";
 
 interface ChatWindowProps {
-  contact: Contact;
+  contact: ContactWithLastMessage;
   messages: Message[];
   onSendMessage: (text: string) => void;
+  isLoading?: boolean;
 }
 
 export function ChatWindow({ contact, messages, onSendMessage }: ChatWindowProps) {
@@ -48,7 +49,7 @@ export function ChatWindow({ contact, messages, onSendMessage }: ChatWindowProps
       <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200 z-10">
         <div className="flex items-center gap-3 cursor-pointer">
           <Avatar>
-            <AvatarImage src={contact.avatar} />
+            <AvatarImage src={contact.avatar || undefined} />
             <AvatarFallback>{contact.name.substring(0, 2)}</AvatarFallback>
           </Avatar>
           <div>
@@ -92,7 +93,7 @@ export function ChatWindow({ contact, messages, onSendMessage }: ChatWindowProps
                     "text-[10px] text-gray-500 mt-1 flex items-center gap-1",
                     isMe ? "justify-end" : "justify-end"
                   )}>
-                    {msg.timestamp}
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     {isMe && (
                       <span className={cn(
                         "ml-1",

@@ -6,23 +6,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Contact, DealStage } from "@/lib/mock-data";
+import type { ContactWithLastMessage, UpdateContact, DealStage } from "@shared/schema";
 import { Separator } from "@/components/ui/separator";
 
 interface CrmPanelProps {
-  contact: Contact;
-  onUpdateContact: (id: number, updates: Partial<Contact>) => void;
+  contact: ContactWithLastMessage;
+  onUpdateContact: (id: number, updates: UpdateContact) => void;
   onClose: () => void;
+  isUpdating?: boolean;
 }
 
-export function CrmPanel({ contact, onUpdateContact, onClose }: CrmPanelProps) {
+export function CrmPanel({ contact, onUpdateContact, onClose, isUpdating }: CrmPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<Partial<Contact>>(contact);
-
-  // Update form data when contact changes
-  if (formData.id !== contact.id && !isEditing) {
-    setFormData(contact);
-  }
+  const [formData, setFormData] = useState<UpdateContact>({
+    name: contact.name,
+    phone: contact.phone,
+    avatar: contact.avatar,
+    email: contact.email,
+    company: contact.company,
+    stage: contact.stage,
+    tags: contact.tags,
+    notes: contact.notes,
+    value: contact.value,
+  });
 
   const handleSave = () => {
     onUpdateContact(contact.id, formData);
@@ -45,7 +51,13 @@ export function CrmPanel({ contact, onUpdateContact, onClose }: CrmPanelProps) {
 
       <ScrollArea className="flex-1 p-4">
         <div className="flex flex-col items-center mb-6">
-          <img src={contact.avatar} alt={contact.name} className="w-24 h-24 rounded-full object-cover mb-3 shadow-sm" />
+          {contact.avatar ? (
+            <img src={contact.avatar} alt={contact.name} className="w-24 h-24 rounded-full object-cover mb-3 shadow-sm" />
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center mb-3 shadow-sm">
+              <span className="text-3xl font-bold text-gray-400">{contact.name.substring(0, 2)}</span>
+            </div>
+          )}
           <h3 className="text-xl font-semibold text-gray-900 text-center">{contact.name}</h3>
           <p className="text-sm text-gray-500">{contact.phone}</p>
         </div>
@@ -53,15 +65,15 @@ export function CrmPanel({ contact, onUpdateContact, onClose }: CrmPanelProps) {
         <div className="space-y-6">
             {/* Actions */}
             {!isEditing ? (
-                 <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full flex gap-2">
+                 <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full flex gap-2" disabled={isUpdating}>
                     <Edit2 className="w-4 h-4" /> Edit Details
                  </Button>
             ) : (
                 <div className="flex gap-2">
-                    <Button onClick={handleSave} className="flex-1 bg-primary hover:bg-primary/90">
-                        <Save className="w-4 h-4 mr-2" /> Save
+                    <Button onClick={handleSave} className="flex-1 bg-primary hover:bg-primary/90" disabled={isUpdating}>
+                        <Save className="w-4 h-4 mr-2" /> {isUpdating ? "Saving..." : "Save"}
                     </Button>
-                     <Button onClick={handleCancel} variant="ghost" className="flex-1">
+                     <Button onClick={handleCancel} variant="ghost" className="flex-1" disabled={isUpdating}>
                         Cancel
                     </Button>
                 </div>
