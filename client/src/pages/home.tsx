@@ -33,17 +33,14 @@ export default function Home() {
 
   if (contactsLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-gray-500">Loading contacts...</div>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-gray-500">Carregando contatos...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen w-screen bg-gray-100 overflow-hidden relative">
-      <div className="absolute top-0 left-0 w-full h-32 bg-primary z-0"></div>
-
-      <div className="z-10 flex w-full h-full max-w-[1600px] mx-auto xl:py-5 xl:h-[calc(100vh-40px)] shadow-2xl overflow-hidden rounded-lg bg-white">
+    <div className="flex h-full bg-white overflow-hidden">
         
         <ChatList 
           contacts={contacts} 
@@ -78,15 +75,14 @@ export default function Home() {
           </div>
         )}
 
-        {selectedContact && showCrmPanel && (
-          <CrmPanel 
-            contact={selectedContact} 
-            onUpdateContact={handleUpdateContact}
-            isUpdating={updateContactMutation.isPending}
-            onClose={() => setShowCrmPanel(false)}
-          />
-        )}
-      </div>
+      {selectedContact && showCrmPanel && (
+        <CrmPanel 
+          contact={selectedContact} 
+          onUpdateContact={handleUpdateContact}
+          isUpdating={updateContactMutation.isPending}
+          onClose={() => setShowCrmPanel(false)}
+        />
+      )}
     </div>
   );
 }
