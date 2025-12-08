@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { 
   Dialog, 
   DialogContent, 
@@ -51,6 +53,14 @@ interface OrderItemForm {
   notes?: string;
 }
 
+const paymentMethods = [
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "PIX" },
+  { value: "cartao_credito", label: "Cartão de Crédito" },
+  { value: "cartao_debito", label: "Cartão de Débito" },
+  { value: "transferencia", label: "Transferência" },
+];
+
 export default function Orders() {
   const { data: orders = [], isLoading } = useOrders();
   const { data: products = [] } = useProducts();
@@ -67,11 +77,16 @@ export default function Orders() {
   const [formData, setFormData] = useState<Partial<InsertOrder>>({
     contactId: 0,
     status: "pending",
-    deliveryAddress: "",
+    deliveryAddress: "__pickup__",
+    deliveryFee: "0",
+    paymentMethod: "dinheiro",
+    isPaid: 0,
     notes: "",
   });
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
+
+  const selectedContact = contacts.find(c => c.id === formData.contactId);
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch = 
@@ -91,11 +106,24 @@ export default function Orders() {
     setFormData({
       contactId: 0,
       status: "pending",
-      deliveryAddress: "",
+      deliveryAddress: "__pickup__",
+      deliveryFee: "0",
+      paymentMethod: "dinheiro",
+      isPaid: 0,
       notes: "",
     });
     setOrderItems([]);
     setIsFormOpen(true);
+  };
+
+  const handleContactChange = (contactIdStr: string) => {
+    const contactId = parseInt(contactIdStr);
+    const contact = contacts.find(c => c.id === contactId);
+    setFormData({ 
+      ...formData, 
+      contactId,
+      deliveryAddress: contact?.addresses?.[0] || "__pickup__"
+    });
   };
 
   const addOrderItem = () => {
@@ -120,10 +148,14 @@ export default function Orders() {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return orderItems.reduce((sum, item) => {
       return sum + (Number(item.unitPrice) * item.quantity);
     }, 0);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() + Number(formData.deliveryFee || 0);
   };
 
   const handleSubmit = () => {
@@ -138,9 +170,14 @@ export default function Orders() {
 
     createOrder.mutate({
       order: {
-        ...formData,
         contactId: formData.contactId!,
+        status: formData.status || "pending",
+        notes: formData.notes,
         total: calculateTotal().toFixed(2),
+        deliveryFee: formData.deliveryFee || "0",
+        deliveryAddress: formData.deliveryAddress === "__pickup__" ? null : (formData.deliveryAddress || null),
+        paymentMethod: formData.paymentMethod || "dinheiro",
+        isPaid: formData.isPaid || 0,
       } as InsertOrder,
       items,
     });
@@ -416,7 +453,7 @@ export default function Orders() {
               <Label>Cliente *</Label>
               <Select 
                 value={formData.contactId?.toString() || ""} 
-                onValueChange={(v) => setFormData({ ...formData, contactId: parseInt(v) })}
+                onValueChange={handleContactChange}
               >
                 <SelectTrigger data-testid="select-order-contact">
                   <SelectValue placeholder="Selecione o cliente" />
@@ -507,21 +544,82 @@ export default function Orders() {
                     </div>
                   ))}
 
-                  <div className="flex justify-end pt-2 text-lg font-bold">
-                    Total: R$ {calculateTotal().toFixed(2)}
+                  <div className="flex justify-between pt-2 text-sm border-t">
+                    <span>Subtotal:</span>
+                    <span>R$ {calculateSubtotal().toFixed(2)}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label>Endereço de Entrega</Label>
-              <Input
-                data-testid="input-order-address"
-                value={formData.deliveryAddress || ""}
-                onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                placeholder="Endereço de entrega (opcional)"
-              />
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Endereço de Entrega</Label>
+                <Select 
+                  value={formData.deliveryAddress || "__pickup__"} 
+                  onValueChange={(v) => setFormData({ ...formData, deliveryAddress: v })}
+                  disabled={!selectedContact}
+                >
+                  <SelectTrigger data-testid="select-order-address">
+                    <SelectValue placeholder="Selecione o endereço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__pickup__">Retirar no local</SelectItem>
+                    {selectedContact?.addresses?.map((addr, i) => (
+                      <SelectItem key={i} value={addr}>{addr}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Taxa de Entrega</Label>
+                <Input
+                  data-testid="input-order-delivery-fee"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.deliveryFee || "0"}
+                  onChange={(e) => setFormData({ ...formData, deliveryFee: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Forma de Pagamento</Label>
+                <Select 
+                  value={formData.paymentMethod || "dinheiro"} 
+                  onValueChange={(v) => setFormData({ ...formData, paymentMethod: v })}
+                >
+                  <SelectTrigger data-testid="select-order-payment">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((pm) => (
+                      <SelectItem key={pm.value} value={pm.value}>{pm.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status do Pagamento</Label>
+                <div className="flex items-center gap-2 h-10">
+                  <Checkbox 
+                    id="isPaidOrder"
+                    data-testid="checkbox-order-is-paid"
+                    checked={formData.isPaid === 1}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isPaid: checked ? 1 : 0 })}
+                  />
+                  <label htmlFor="isPaidOrder" className="text-sm cursor-pointer">
+                    Pago
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -533,6 +631,10 @@ export default function Orders() {
                 placeholder="Observações sobre o pedido"
                 rows={3}
               />
+            </div>
+
+            <div className="flex justify-end pt-2 text-lg font-bold border-t">
+              Total: R$ {calculateTotal().toFixed(2)}
             </div>
           </div>
 
