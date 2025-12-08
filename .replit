@@ -45,3 +45,8 @@ waitForPort = 5000
 [agent]
 mockupState = "FULLSTACK"
 integrations = ["javascript_log_in_with_replit:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+ALLOWED_EMAILS = "cpmartins2012@gmail.com"

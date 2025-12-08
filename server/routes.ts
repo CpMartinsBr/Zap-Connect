@@ -32,7 +32,14 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      
+      if (user) {
+        const allowedEmails = (process.env.ALLOWED_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
+        const isAllowed = allowedEmails.length === 0 || allowedEmails.includes(user.email?.toLowerCase() || "");
+        res.json({ ...user, isAllowed });
+      } else {
+        res.json(user);
+      }
     } catch (error: any) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

@@ -7,6 +7,7 @@ import { Layout } from "@/components/layout";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import AccessDenied from "@/pages/access-denied";
 import Home from "@/pages/home";
 import Inventory from "@/pages/inventory";
 import Orders from "@/pages/orders";
@@ -14,12 +15,12 @@ import Ingredients from "@/pages/ingredients";
 import Recipes from "@/pages/recipes";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAllowed } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#075e54] via-[#128c7e] to-[#25d366] flex items-center justify-center">
-        <div className="text-white text-xl">Carregando...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600 text-xl">Carregando...</div>
       </div>
     );
   }
@@ -31,6 +32,10 @@ function Router() {
         <Route component={Landing} />
       </Switch>
     );
+  }
+
+  if (!isAllowed) {
+    return <AccessDenied />;
   }
 
   return (
