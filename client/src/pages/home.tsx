@@ -71,7 +71,7 @@ function ClientDetails({
   const [orderPaymentMethod, setOrderPaymentMethod] = useState("dinheiro");
   const [orderIsPaid, setOrderIsPaid] = useState(false);
   const [orderDeliveryFee, setOrderDeliveryFee] = useState("0");
-  const [orderDeliveryAddress, setOrderDeliveryAddress] = useState("");
+  const [orderDeliveryAddress, setOrderDeliveryAddress] = useState("__pickup__");
 
   const handleSave = () => {
     onUpdateContact(contact.id, formData);
@@ -157,7 +157,7 @@ function ClientDetails({
         notes: orderNotes,
         total: calculateTotal().toFixed(2),
         deliveryFee: orderDeliveryFee,
-        deliveryAddress: orderDeliveryAddress || null,
+        deliveryAddress: orderDeliveryAddress === "__pickup__" ? null : (orderDeliveryAddress || null),
         paymentMethod: orderPaymentMethod,
         isPaid: orderIsPaid ? 1 : 0,
       },
@@ -169,7 +169,7 @@ function ClientDetails({
     setOrderPaymentMethod("dinheiro");
     setOrderIsPaid(false);
     setOrderDeliveryFee("0");
-    setOrderDeliveryAddress("");
+    setOrderDeliveryAddress("__pickup__");
   };
 
   const openOrderDialog = () => {
@@ -178,7 +178,7 @@ function ClientDetails({
     setOrderPaymentMethod("dinheiro");
     setOrderIsPaid(false);
     setOrderDeliveryFee("0");
-    setOrderDeliveryAddress(contact.addresses?.[0] || "");
+    setOrderDeliveryAddress(contact.addresses?.[0] || "__pickup__");
     setIsOrderDialogOpen(true);
   };
 
@@ -518,7 +518,7 @@ function ClientDetails({
                     <SelectValue placeholder="Selecione ou digite" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Retirar no local</SelectItem>
+                    <SelectItem value="__pickup__">Retirar no local</SelectItem>
                     {contact.addresses?.map((addr, i) => (
                       <SelectItem key={i} value={addr}>{addr}</SelectItem>
                     ))}
