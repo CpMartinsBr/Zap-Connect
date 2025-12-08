@@ -1,9 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Package, ShoppingCart, Wheat, BookOpen, LogOut, User } from "lucide-react";
+import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
-  { path: "/", icon: MessageCircle, label: "Conversas" },
+  { path: "/", icon: Users, label: "Clientes" },
   { path: "/estoque", icon: Package, label: "Estoque" },
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
   { path: "/ingredientes", icon: Wheat, label: "Ingredientes" },
