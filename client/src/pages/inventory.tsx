@@ -1,5 +1,15 @@
-import { useState } from "react";
-import { useProducts, useCreateProduct, useUpdateProduct, useUpdateStock, useDeleteProduct } from "@/lib/hooks";
+import { useState, useEffect } from "react";
+import { 
+  useProducts, 
+  useCreateProduct, 
+  useUpdateProduct, 
+  useUpdateStock, 
+  useDeleteProduct,
+  useProductWithComponents,
+  useSetProductComponents,
+  useRecipes,
+  useIngredients,
+} from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +19,7 @@ import {
   DialogHeader, 
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -26,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { 
   Plus, 
   Pencil, 
@@ -35,26 +47,45 @@ import {
   ArrowUp,
   ArrowDown,
   Search,
+  Settings2,
+  Box,
+  ChefHat,
+  X,
 } from "lucide-react";
 import type { Product, InsertProduct } from "@shared/schema";
 
 const categories = ["Bombons", "Macarons", "Fudge", "Drágeas", "Pão de Mel", "Torrone"];
 const units = ["un", "kg", "g", "L", "ml", "dz"];
 
+type RecipeComponentInput = { recipeId: number; quantity: string };
+type PackagingComponentInput = { ingredientId: number; quantity: string };
+
 export default function Inventory() {
   const { data: products = [], isLoading } = useProducts();
+  const { data: recipes = [] } = useRecipes();
+  const { data: ingredients = [] } = useIngredients();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const updateStock = useUpdateStock();
   const deleteProduct = useDeleteProduct();
+  const setProductComponents = useSetProductComponents();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isStockOpen, setIsStockOpen] = useState(false);
+  const [isCompositionOpen, setIsCompositionOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [stockProduct, setStockProduct] = useState<Product | null>(null);
+  const [compositionProduct, setCompositionProduct] = useState<Product | null>(null);
   const [stockQuantity, setStockQuantity] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const [recipeComponents, setRecipeComponents] = useState<RecipeComponentInput[]>([]);
+  const [packagingComponents, setPackagingComponents] = useState<PackagingComponentInput[]>([]);
+
+  const { data: productWithComponents } = useProductWithComponents(compositionProduct?.id || null);
+  
+  const packagingIngredients = ingredients.filter(ing => ing.kind === "packaging");
 
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
     name: "",
@@ -66,6 +97,23 @@ export default function Inventory() {
     stock: 0,
     minStock: 5,
   });
+
+  useEffect(() => {
+    if (productWithComponents) {
+      setRecipeComponents(
+        productWithComponents.recipeComponents.map(c => ({
+          recipeId: c.recipeId,
+          quantity: c.quantity,
+        }))
+      );
+      setPackagingComponents(
+        productWithComponents.packagingComponents.map(c => ({
+          ingredientId: c.ingredientId,
+          quantity: c.quantity,
+        }))
+      );
+    }
+  }, [productWithComponents]);
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -139,6 +187,65 @@ export default function Inventory() {
     if (confirm("Tem certeza que deseja excluir este produto?")) {
       deleteProduct.mutate(id);
     }
+  };
+
+  const handleOpenComposition = (product: Product) => {
+    setCompositionProduct(product);
+    setRecipeComponents([]);
+    setPackagingComponents([]);
+    setIsCompositionOpen(true);
+  };
+
+  const handleAddRecipeComponent = () => {
+    if (recipes.length === 0) return;
+    const firstUnused = recipes.find(r => !recipeComponents.some(c => c.recipeId === r.id));
+    if (firstUnused) {
+      setRecipeComponents([...recipeComponents, { recipeId: firstUnused.id, quantity: "1" }]);
+    }
+  };
+
+  const handleAddPackagingComponent = () => {
+    if (packagingIngredients.length === 0) return;
+    const firstUnused = packagingIngredients.find(p => !packagingComponents.some(c => c.ingredientId === p.id));
+    if (firstUnused) {
+      setPackagingComponents([...packagingComponents, { ingredientId: firstUnused.id, quantity: "1" }]);
+    }
+  };
+
+  const handleRemoveRecipeComponent = (index: number) => {
+    setRecipeComponents(recipeComponents.filter((_, i) => i !== index));
+  };
+
+  const handleRemovePackagingComponent = (index: number) => {
+    setPackagingComponents(packagingComponents.filter((_, i) => i !== index));
+  };
+
+  const handleSaveComposition = () => {
+    if (!compositionProduct) return;
+    setProductComponents.mutate({
+      productId: compositionProduct.id,
+      recipeComponents,
+      packagingComponents,
+    }, {
+      onSuccess: () => setIsCompositionOpen(false),
+    });
+  };
+
+  const calculateCompositionCost = () => {
+    let total = 0;
+    recipeComponents.forEach(comp => {
+      const recipe = recipes.find(r => r.id === comp.recipeId);
+      if (recipe) {
+        total += recipe.costPerUnit * parseFloat(comp.quantity || "0");
+      }
+    });
+    packagingComponents.forEach(comp => {
+      const ingredient = packagingIngredients.find(p => p.id === comp.ingredientId);
+      if (ingredient) {
+        total += parseFloat(ingredient.costPerUnit || "0") * parseFloat(comp.quantity || "0");
+      }
+    });
+    return total;
   };
 
   if (isLoading) {
@@ -257,6 +364,15 @@ export default function Inventory() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        data-testid={`btn-composition-${product.id}`}
+                        variant="ghost"
+                        size="icon"
+                        title="Composição do produto"
+                        onClick={() => handleOpenComposition(product)}
+                      >
+                        <Settings2 size={16} />
+                      </Button>
                       <Button
                         data-testid={`btn-edit-${product.id}`}
                         variant="ghost"
@@ -460,6 +576,208 @@ export default function Inventory() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCompositionOpen} onOpenChange={setIsCompositionOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Composição do Produto</DialogTitle>
+            <DialogDescription>
+              Configure os itens que compõem o produto "{compositionProduct?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ChefHat size={18} className="text-amber-600" />
+                  <Label className="font-semibold">Receitas</Label>
+                </div>
+                <Button
+                  data-testid="btn-add-recipe-component"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddRecipeComponent}
+                  disabled={recipes.length === 0 || recipeComponents.length >= recipes.length}
+                >
+                  <Plus size={14} className="mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+              
+              {recipeComponents.length === 0 ? (
+                <div className="text-sm text-gray-500 text-center py-4 border rounded-lg">
+                  Nenhuma receita adicionada
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recipeComponents.map((comp, index) => {
+                    const recipe = recipes.find(r => r.id === comp.recipeId);
+                    return (
+                      <Card key={index}>
+                        <CardContent className="p-3 flex items-center gap-3">
+                          <Select
+                            value={String(comp.recipeId)}
+                            onValueChange={(v) => {
+                              const updated = [...recipeComponents];
+                              updated[index].recipeId = parseInt(v);
+                              setRecipeComponents(updated);
+                            }}
+                          >
+                            <SelectTrigger data-testid={`select-recipe-${index}`} className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {recipes.map((r) => (
+                                <SelectItem key={r.id} value={String(r.id)}>
+                                  {r.name} (R$ {r.costPerUnit.toFixed(2)}/un)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            data-testid={`input-recipe-qty-${index}`}
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={comp.quantity}
+                            onChange={(e) => {
+                              const updated = [...recipeComponents];
+                              updated[index].quantity = e.target.value;
+                              setRecipeComponents(updated);
+                            }}
+                            className="w-20 text-center"
+                          />
+                          <span className="text-sm text-gray-500">un</span>
+                          <span className="text-sm font-medium w-24 text-right">
+                            R$ {((recipe?.costPerUnit || 0) * parseFloat(comp.quantity || "0")).toFixed(2)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveRecipeComponent(index)}
+                          >
+                            <X size={16} />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Box size={18} className="text-blue-600" />
+                  <Label className="font-semibold">Embalagens</Label>
+                </div>
+                <Button
+                  data-testid="btn-add-packaging-component"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddPackagingComponent}
+                  disabled={packagingIngredients.length === 0 || packagingComponents.length >= packagingIngredients.length}
+                >
+                  <Plus size={14} className="mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+              
+              {packagingIngredients.length === 0 ? (
+                <div className="text-sm text-gray-500 text-center py-4 border rounded-lg">
+                  Nenhuma embalagem cadastrada. Cadastre em Estoque com tipo "Embalagem".
+                </div>
+              ) : packagingComponents.length === 0 ? (
+                <div className="text-sm text-gray-500 text-center py-4 border rounded-lg">
+                  Nenhuma embalagem adicionada
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {packagingComponents.map((comp, index) => {
+                    const packaging = packagingIngredients.find(p => p.id === comp.ingredientId);
+                    return (
+                      <Card key={index}>
+                        <CardContent className="p-3 flex items-center gap-3">
+                          <Select
+                            value={String(comp.ingredientId)}
+                            onValueChange={(v) => {
+                              const updated = [...packagingComponents];
+                              updated[index].ingredientId = parseInt(v);
+                              setPackagingComponents(updated);
+                            }}
+                          >
+                            <SelectTrigger data-testid={`select-packaging-${index}`} className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {packagingIngredients.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.name} (R$ {parseFloat(p.costPerUnit || "0").toFixed(2)}/un)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            data-testid={`input-packaging-qty-${index}`}
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={comp.quantity}
+                            onChange={(e) => {
+                              const updated = [...packagingComponents];
+                              updated[index].quantity = e.target.value;
+                              setPackagingComponents(updated);
+                            }}
+                            className="w-20 text-center"
+                          />
+                          <span className="text-sm text-gray-500">un</span>
+                          <span className="text-sm font-medium w-24 text-right">
+                            R$ {(parseFloat(packaging?.costPerUnit || "0") * parseFloat(comp.quantity || "0")).toFixed(2)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemovePackagingComponent(index)}
+                          >
+                            <X size={16} />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <Card className="bg-gray-50">
+              <CardContent className="p-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Custo Total Calculado:</span>
+                  <span className="text-xl font-bold text-[#00A884]">
+                    R$ {calculateCompositionCost().toFixed(2)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCompositionOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              data-testid="btn-save-composition"
+              onClick={handleSaveComposition}
+              disabled={setProductComponents.isPending}
+              className="bg-[#00A884] hover:bg-[#008f6f]"
+            >
+              {setProductComponents.isPending ? "Salvando..." : "Salvar Composição"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -16,6 +16,8 @@ import {
   insertRecipeSchema,
   updateRecipeSchema,
   insertRecipeItemSchema,
+  insertProductRecipeComponentSchema,
+  insertProductPackagingComponentSchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -209,6 +211,56 @@ export async function registerRoutes(
       await storage.deleteProduct(id);
       res.status(204).send();
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ PRODUCT COMPONENTS ============
+  app.get("/api/products-with-components", async (req, res) => {
+    try {
+      const products = await storage.getAllProductsWithComponents();
+      res.json(products);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/products/:id/components", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const product = await storage.getProductWithComponents(id);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      res.json(product);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  const setComponentsSchema = z.object({
+    recipeComponents: z.array(z.object({
+      recipeId: z.number(),
+      quantity: z.string().or(z.number()).transform(v => String(v)),
+    })),
+    packagingComponents: z.array(z.object({
+      ingredientId: z.number(),
+      quantity: z.string().or(z.number()).transform(v => String(v)),
+    })),
+  });
+
+  app.put("/api/products/:id/components", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { recipeComponents, packagingComponents } = setComponentsSchema.parse(req.body);
+      
+      await storage.setProductComponents(id, recipeComponents, packagingComponents);
+      const product = await storage.getProductWithComponents(id);
+      res.json(product);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
       res.status(500).json({ error: error.message });
     }
   });

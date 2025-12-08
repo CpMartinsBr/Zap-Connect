@@ -21,6 +21,7 @@ import type {
   UpdateRecipe,
   RecipeWithItems,
   InsertRecipeItem,
+  ProductWithComponents,
 } from "@shared/schema";
 
 async function fetchAPI(url: string, options?: RequestInit) {
@@ -118,6 +119,26 @@ export async function updateStock(id: number, quantity: number): Promise<Product
 export async function deleteProduct(id: number): Promise<void> {
   return fetchAPI(`/api/products/${id}`, {
     method: "DELETE",
+  });
+}
+
+// ============ PRODUCT COMPONENTS ============
+export async function getProductsWithComponents(): Promise<ProductWithComponents[]> {
+  return fetchAPI("/api/products-with-components");
+}
+
+export async function getProductWithComponents(id: number): Promise<ProductWithComponents> {
+  return fetchAPI(`/api/products/${id}/components`);
+}
+
+export async function setProductComponents(
+  productId: number,
+  recipeComponents: { recipeId: number; quantity: string }[],
+  packagingComponents: { ingredientId: number; quantity: string }[]
+): Promise<ProductWithComponents> {
+  return fetchAPI(`/api/products/${productId}/components`, {
+    method: "PUT",
+    body: JSON.stringify({ recipeComponents, packagingComponents }),
   });
 }
 

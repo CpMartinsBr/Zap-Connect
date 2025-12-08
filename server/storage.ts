@@ -29,6 +29,11 @@ import type {
   RecipeItem,
   InsertRecipeItem,
   RecipeWithItems,
+  ProductRecipeComponent,
+  InsertProductRecipeComponent,
+  ProductPackagingComponent,
+  InsertProductPackagingComponent,
+  ProductWithComponents,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -86,6 +91,16 @@ export interface IStorage {
   updateRecipe(id: number, updates: UpdateRecipe, items?: InsertRecipeItem[]): Promise<Recipe | undefined>;
   deleteRecipe(id: number): Promise<void>;
   createProductFromRecipe(recipeId: number): Promise<Product>;
+
+  // Product Components
+  getProductWithComponents(id: number): Promise<ProductWithComponents | undefined>;
+  getAllProductsWithComponents(): Promise<ProductWithComponents[]>;
+  setProductComponents(
+    productId: number,
+    recipeComponents: Omit<InsertProductRecipeComponent, 'productId'>[],
+    packagingComponents: Omit<InsertProductPackagingComponent, 'productId'>[]
+  ): Promise<void>;
+  calculateProductCost(productId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -549,6 +564,118 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.recipes.id, recipeId));
 
     return newProduct;
+  }
+
+  // ============ PRODUCT COMPONENTS ============
+  async getProductWithComponents(id: number): Promise<ProductWithComponents | undefined> {
+    const product = await this.getProduct(id);
+    if (!product) return undefined;
+
+    return this.enrichProductWithComponents(product);
+  }
+
+  async getAllProductsWithComponents(): Promise<ProductWithComponents[]> {
+    const products = await this.getAllProducts();
+    return await Promise.all(
+      products.map(async (product) => this.enrichProductWithComponents(product))
+    );
+  }
+
+  private async enrichProductWithComponents(product: Product): Promise<ProductWithComponents> {
+    const recipeComponents = await db
+      .select()
+      .from(schema.productRecipeComponents)
+      .where(eq(schema.productRecipeComponents.productId, product.id));
+
+    const packagingComponents = await db
+      .select()
+      .from(schema.productPackagingComponents)
+      .where(eq(schema.productPackagingComponents.productId, product.id));
+
+    const enrichedRecipeComponents = await Promise.all(
+      recipeComponents.map(async (comp) => {
+        const recipe = await this.getRecipe(comp.recipeId);
+        return { ...comp, recipe: recipe! };
+      })
+    );
+
+    const enrichedPackagingComponents = await Promise.all(
+      packagingComponents.map(async (comp) => {
+        const ingredient = await this.getIngredient(comp.ingredientId);
+        return { ...comp, ingredient: ingredient! };
+      })
+    );
+
+    const calculatedCost = await this.calculateProductCost(product.id);
+
+    return {
+      ...product,
+      recipeComponents: enrichedRecipeComponents,
+      packagingComponents: enrichedPackagingComponents,
+      calculatedCost,
+    };
+  }
+
+  async setProductComponents(
+    productId: number,
+    recipeComponents: Omit<InsertProductRecipeComponent, 'productId'>[],
+    packagingComponents: Omit<InsertProductPackagingComponent, 'productId'>[]
+  ): Promise<void> {
+    await db.delete(schema.productRecipeComponents).where(eq(schema.productRecipeComponents.productId, productId));
+    await db.delete(schema.productPackagingComponents).where(eq(schema.productPackagingComponents.productId, productId));
+
+    for (const comp of recipeComponents) {
+      await db.insert(schema.productRecipeComponents).values({
+        ...comp,
+        productId,
+      });
+    }
+
+    for (const comp of packagingComponents) {
+      await db.insert(schema.productPackagingComponents).values({
+        ...comp,
+        productId,
+      });
+    }
+
+    const calculatedCost = await this.calculateProductCost(productId);
+    await db
+      .update(schema.products)
+      .set({ cost: calculatedCost.toFixed(2), updatedAt: new Date() })
+      .where(eq(schema.products.id, productId));
+  }
+
+  async calculateProductCost(productId: number): Promise<number> {
+    let totalCost = 0;
+
+    const recipeComponents = await db
+      .select()
+      .from(schema.productRecipeComponents)
+      .where(eq(schema.productRecipeComponents.productId, productId));
+
+    for (const comp of recipeComponents) {
+      const recipe = await this.getRecipe(comp.recipeId);
+      if (recipe) {
+        const quantity = parseFloat(comp.quantity || "1");
+        totalCost += recipe.costPerUnit * quantity;
+      }
+    }
+
+    const packagingComponents = await db
+      .select()
+      .from(schema.productPackagingComponents)
+      .where(eq(schema.productPackagingComponents.productId, productId));
+
+    for (const comp of packagingComponents) {
+      const ingredient = await this.getIngredient(comp.ingredientId);
+      if (ingredient) {
+        const quantity = parseFloat(comp.quantity || "1");
+        const costPerUnit = parseFloat(ingredient.costPerUnit || "0");
+        totalCost += costPerUnit * quantity;
+      }
+    }
+
+    return totalCost;
   }
 }
 

@@ -114,6 +114,42 @@ export function useDeleteProduct() {
   });
 }
 
+// ============ PRODUCT COMPONENTS ============
+export function useProductsWithComponents() {
+  return useQuery({
+    queryKey: ["products-with-components"],
+    queryFn: api.getProductsWithComponents,
+  });
+}
+
+export function useProductWithComponents(id: number | null) {
+  return useQuery({
+    queryKey: ["product-components", id],
+    queryFn: () => id ? api.getProductWithComponents(id) : Promise.resolve(null),
+    enabled: !!id,
+  });
+}
+
+export function useSetProductComponents() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ 
+      productId, 
+      recipeComponents, 
+      packagingComponents 
+    }: { 
+      productId: number; 
+      recipeComponents: { recipeId: number; quantity: string }[]; 
+      packagingComponents: { ingredientId: number; quantity: string }[] 
+    }) => api.setProductComponents(productId, recipeComponents, packagingComponents),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products-with-components"] });
+      queryClient.invalidateQueries({ queryKey: ["product-components"] });
+    },
+  });
+}
+
 // ============ ORDERS ============
 export function useOrders() {
   return useQuery({

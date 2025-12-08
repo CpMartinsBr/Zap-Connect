@@ -164,9 +164,12 @@ export type OrderWithItems = Order & {
 export type ProductCategory = "Bolo" | "Doce" | "Salgado" | "Bebida" | "Ingrediente" | "Produto";
 
 // ============ INGREDIENTS ============
+export type IngredientKind = "ingredient" | "packaging";
+
 export const ingredients = pgTable("ingredients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  kind: text("kind").notNull().default("ingredient"),
   unit: text("unit").notNull().default("g"),
   costPerUnit: numeric("cost_per_unit", { precision: 10, scale: 4 }).notNull().default("0"),
   stock: numeric("stock", { precision: 10, scale: 2 }).default("0"),
@@ -233,4 +236,41 @@ export type RecipeWithItems = Recipe & {
   product?: Product | null;
   totalCost: number;
   costPerUnit: number;
+};
+
+// ============ PRODUCT RECIPE COMPONENTS ============
+export const productRecipeComponents = pgTable("product_recipe_components", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  recipeId: integer("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
+});
+
+export const insertProductRecipeComponentSchema = createInsertSchema(productRecipeComponents).omit({
+  id: true,
+});
+
+export type ProductRecipeComponent = typeof productRecipeComponents.$inferSelect;
+export type InsertProductRecipeComponent = z.infer<typeof insertProductRecipeComponentSchema>;
+
+// ============ PRODUCT PACKAGING COMPONENTS ============
+export const productPackagingComponents = pgTable("product_packaging_components", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
+});
+
+export const insertProductPackagingComponentSchema = createInsertSchema(productPackagingComponents).omit({
+  id: true,
+});
+
+export type ProductPackagingComponent = typeof productPackagingComponents.$inferSelect;
+export type InsertProductPackagingComponent = z.infer<typeof insertProductPackagingComponentSchema>;
+
+// ============ EXTENDED PRODUCT TYPES ============
+export type ProductWithComponents = Product & {
+  recipeComponents: (ProductRecipeComponent & { recipe: RecipeWithItems })[];
+  packagingComponents: (ProductPackagingComponent & { ingredient: Ingredient })[];
+  calculatedCost: number;
 };
