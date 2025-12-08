@@ -78,11 +78,15 @@ export default function Orders() {
     contactId: 0,
     status: "pending",
     deliveryAddress: "__pickup__",
+    deliveryDate: null,
+    deliveryTime: "",
     deliveryFee: "0",
     paymentMethod: "dinheiro",
     isPaid: 0,
     notes: "",
   });
+  
+  const [deliveryDateStr, setDeliveryDateStr] = useState("");
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
 
@@ -107,11 +111,14 @@ export default function Orders() {
       contactId: 0,
       status: "pending",
       deliveryAddress: "__pickup__",
+      deliveryDate: null,
+      deliveryTime: "",
       deliveryFee: "0",
       paymentMethod: "dinheiro",
       isPaid: 0,
       notes: "",
     });
+    setDeliveryDateStr("");
     setOrderItems([]);
     setIsFormOpen(true);
   };
@@ -176,6 +183,8 @@ export default function Orders() {
         total: calculateTotal().toFixed(2),
         deliveryFee: formData.deliveryFee || "0",
         deliveryAddress: formData.deliveryAddress === "__pickup__" ? null : (formData.deliveryAddress || null),
+        deliveryDate: deliveryDateStr ? new Date(deliveryDateStr) : null,
+        deliveryTime: formData.deliveryTime || null,
         paymentMethod: formData.paymentMethod || "dinheiro",
         isPaid: formData.isPaid || 0,
       } as InsertOrder,
@@ -553,6 +562,28 @@ export default function Orders() {
             </div>
 
             <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data de Entrega</Label>
+                <Input
+                  data-testid="input-order-delivery-date"
+                  type="date"
+                  value={deliveryDateStr}
+                  onChange={(e) => setDeliveryDateStr(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Horário de Entrega</Label>
+                <Input
+                  data-testid="input-order-delivery-time"
+                  type="time"
+                  value={formData.deliveryTime || ""}
+                  onChange={(e) => setFormData({ ...formData, deliveryTime: e.target.value })}
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

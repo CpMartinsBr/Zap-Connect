@@ -247,14 +247,18 @@ export async function registerRoutes(
   });
 
   const createOrderSchema = z.object({
-    order: insertOrderSchema,
+    order: insertOrderSchema.extend({
+      deliveryDate: z.union([z.string(), z.date(), z.null()]).optional().transform(val => 
+        val ? (typeof val === 'string' ? new Date(val) : val) : null
+      ),
+    }),
     items: z.array(insertOrderItemSchema.omit({ orderId: true })),
   });
 
   app.post("/api/orders", async (req, res) => {
     try {
       const { order, items } = createOrderSchema.parse(req.body);
-      const newOrder = await storage.createOrder(order, items.map(item => ({ ...item, orderId: 0 })));
+      const newOrder = await storage.createOrder(order as any, items.map(item => ({ ...item, orderId: 0 })));
       res.status(201).json(newOrder);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -264,11 +268,17 @@ export async function registerRoutes(
     }
   });
 
+  const updateOrderSchemaWithDateTransform = updateOrderSchema.extend({
+    deliveryDate: z.union([z.string(), z.date(), z.null()]).optional().transform(val => 
+      val ? (typeof val === 'string' ? new Date(val) : val) : null
+    ),
+  });
+
   app.patch("/api/orders/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const validatedData = updateOrderSchema.parse(req.body);
-      const order = await storage.updateOrder(id, validatedData);
+      const validatedData = updateOrderSchemaWithDateTransform.parse(req.body);
+      const order = await storage.updateOrder(id, validatedData as any);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }

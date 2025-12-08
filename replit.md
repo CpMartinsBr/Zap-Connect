@@ -86,10 +86,10 @@ Preferred communication style: Simple, everyday language.
 - **Contacts**: Core CRM entity with name, phone, email, company, delivery addresses (array), and notes
 - **Messages**: Linked to contacts with content, sender ID, status, and timestamps
 - **Products**: Inventory items with bakery categories (Bombons, Macarons, Fudge, Drágeas, Pão de Mel, Torrone), price, stock quantity, and unit
-- **Orders**: Customer orders with contact reference, status, total, delivery date/address, delivery fee, payment method, paid status, and notes
+- **Orders**: Customer orders with contact reference, status, order date (auto-filled), delivery date/time, delivery address, delivery fee, payment method, paid status, total, and notes
 - **Order Items**: Join table linking orders to products with quantity and unit price
-- **Ingredients**: Raw materials with name, unit, cost per unit, stock levels, minimum stock alerts, supplier info, and notes
-- **Recipes**: Product recipes with name, yield, yield unit, instructions, notes, and automatic cost calculation
+- **Ingredients**: Raw materials with name, unit, cost per unit, stock levels, minimum stock alerts, supplier info, and notes (displayed as "Estoque" in navigation)
+- **Recipes**: Product recipes with name, yield, yield unit, instructions, notes, and automatic cost calculation. Only uses pre-registered ingredients via dropdown selection.
 - **Recipe Items**: Join table linking recipes to ingredients with quantity for cost aggregation
 
 **Access Control**

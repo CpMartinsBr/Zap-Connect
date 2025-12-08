@@ -72,6 +72,8 @@ function ClientDetails({
   const [orderIsPaid, setOrderIsPaid] = useState(false);
   const [orderDeliveryFee, setOrderDeliveryFee] = useState("0");
   const [orderDeliveryAddress, setOrderDeliveryAddress] = useState("__pickup__");
+  const [orderDeliveryDate, setOrderDeliveryDate] = useState("");
+  const [orderDeliveryTime, setOrderDeliveryTime] = useState("");
 
   const handleSave = () => {
     onUpdateContact(contact.id, formData);
@@ -158,6 +160,8 @@ function ClientDetails({
         total: calculateTotal().toFixed(2),
         deliveryFee: orderDeliveryFee,
         deliveryAddress: orderDeliveryAddress === "__pickup__" ? null : (orderDeliveryAddress || null),
+        deliveryDate: orderDeliveryDate ? new Date(orderDeliveryDate) : null,
+        deliveryTime: orderDeliveryTime || null,
         paymentMethod: orderPaymentMethod,
         isPaid: orderIsPaid ? 1 : 0,
       },
@@ -170,6 +174,8 @@ function ClientDetails({
     setOrderIsPaid(false);
     setOrderDeliveryFee("0");
     setOrderDeliveryAddress("__pickup__");
+    setOrderDeliveryDate("");
+    setOrderDeliveryTime("");
   };
 
   const openOrderDialog = () => {
@@ -179,6 +185,8 @@ function ClientDetails({
     setOrderIsPaid(false);
     setOrderDeliveryFee("0");
     setOrderDeliveryAddress(contact.addresses?.[0] || "__pickup__");
+    setOrderDeliveryDate("");
+    setOrderDeliveryTime("");
     setIsOrderDialogOpen(true);
   };
 
@@ -506,6 +514,28 @@ function ClientDetails({
             </div>
 
             <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Data de Entrega</Label>
+                <Input
+                  data-testid="input-dialog-delivery-date"
+                  type="date"
+                  value={orderDeliveryDate}
+                  onChange={(e) => setOrderDeliveryDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Horário de Entrega</Label>
+                <Input
+                  data-testid="input-dialog-delivery-time"
+                  type="time"
+                  value={orderDeliveryTime}
+                  onChange={(e) => setOrderDeliveryTime(e.target.value)}
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

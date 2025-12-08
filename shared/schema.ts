@@ -113,7 +113,9 @@ export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   contactId: integer("contact_id").notNull().references(() => contacts.id),
   status: text("status").notNull().default("pending"),
+  orderDate: timestamp("order_date").defaultNow().notNull(),
   deliveryDate: timestamp("delivery_date"),
+  deliveryTime: text("delivery_time"),
   deliveryAddress: text("delivery_address"),
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).default("0"),
   paymentMethod: text("payment_method").default("dinheiro"),
@@ -126,6 +128,7 @@ export const orders = pgTable("orders", {
 
 export const insertOrderSchema = createInsertSchema(orders).omit({
   id: true,
+  orderDate: true,
   createdAt: true,
   updatedAt: true,
 });

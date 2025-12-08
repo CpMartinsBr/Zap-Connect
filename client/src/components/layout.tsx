@@ -4,9 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { path: "/", icon: Users, label: "Clientes" },
-  { path: "/estoque", icon: Package, label: "Estoque" },
+  { path: "/ingredientes", icon: Wheat, label: "Estoque" },
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
-  { path: "/ingredientes", icon: Wheat, label: "Ingredientes" },
   { path: "/receitas", icon: BookOpen, label: "Receitas" },
 ];
 
