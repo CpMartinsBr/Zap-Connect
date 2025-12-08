@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Filter, MoreVertical } from "lucide-react";
+import { Search, Plus, Filter, LogOut, Settings } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,9 +13,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ContactWithLastMessage, DealStage, InsertContact } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { useCreateContact } from "@/lib/hooks";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ChatListProps {
   contacts: ContactWithLastMessage[];
@@ -45,6 +53,7 @@ export function ChatList({ contacts, selectedContactId, onSelectContact }: ChatL
     notes: "",
   });
 
+  const { user } = useAuth();
   const createContact = useCreateContact();
 
   const filteredContacts = contacts.filter(contact =>
@@ -80,10 +89,27 @@ export function ChatList({ contacts, selectedContactId, onSelectContact }: ChatL
     <>
       <div className="flex flex-col h-full bg-white border-r border-gray-200 w-[350px] min-w-[300px]">
         <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200">
-          <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-            <AvatarImage src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop" />
-            <AvatarFallback>ME</AvatarFallback>
-          </Avatar>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
+                <AvatarImage src={user?.profileImageUrl || undefined} />
+                <AvatarFallback>{user?.firstName?.substring(0, 2) || user?.email?.substring(0, 2) || "ME"}</AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <div className="px-2 py-1.5 text-sm font-medium text-gray-900">
+                {user?.firstName || user?.email || "Minha conta"}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                className="text-red-600 cursor-pointer"
+                onClick={() => window.location.href = "/api/logout"}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="flex gap-4 text-gray-500">
             <button 
               data-testid="btn-add-contact"
@@ -92,7 +118,6 @@ export function ChatList({ contacts, selectedContactId, onSelectContact }: ChatL
             >
               <Plus className="w-6 h-6" />
             </button>
-            <button className="hover:text-gray-700"><MoreVertical className="w-6 h-6" /></button>
           </div>
         </div>
 
