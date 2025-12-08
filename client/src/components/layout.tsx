@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User } from "lucide-react";
+import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User, Cake } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
@@ -42,11 +42,9 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
       <nav className="w-16 bg-[#202C33] flex flex-col items-center py-4 gap-1">
         <div className="mb-6 p-2">
-          <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
-            alt="WhatsApp CRM" 
-            className="w-8 h-8"
-          />
+          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+            <Cake className="w-6 h-6 text-white" />
+          </div>
         </div>
         
         {navItems.map((item) => {

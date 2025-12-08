@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import type { Product, InsertProduct } from "@shared/schema";
 
-const categories = ["Bolo", "Doce", "Salgado", "Bebida", "Ingrediente", "Produto"];
+const categories = ["Bombons", "Macarons", "Fudge", "Drágeas", "Pão de Mel", "Torrone"];
 const units = ["un", "kg", "g", "L", "ml", "dz"];
 
 export default function Inventory() {
@@ -59,7 +59,7 @@ export default function Inventory() {
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
     name: "",
     description: "",
-    category: "Produto",
+    category: "Bombons",
     unit: "un",
     price: "0",
     cost: "0",
@@ -95,7 +95,7 @@ export default function Inventory() {
       setFormData({
         name: "",
         description: "",
-        category: "Produto",
+        category: "Bombons",
         unit: "un",
         price: "0",
         cost: "0",
