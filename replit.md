@@ -1,8 +1,8 @@
-# WhatsApp CRM
+# Bakery CRM
 
 ## Overview
 
-A professional CRM (Customer Relationship Management) application with a WhatsApp-inspired interface. The system manages contacts, messages, product inventory, and orders. Built as a full-stack web application with a React frontend and Express backend, it provides an intuitive messaging-style interface for customer relationship management with integrated inventory and order management capabilities.
+A professional CRM (Customer Relationship Management) application designed for small bakeries and confectioneries. The system manages contacts with delivery addresses, product inventory with bakery-specific categories, orders with payment tracking, and recipe/ingredient management. Built as a full-stack web application with a React frontend and Express backend, featuring Replit Auth with email whitelist for access control.
 
 ## User Preferences
 
@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
 - Tailwind CSS v4 with custom configuration
 - CSS variables for theming (light/dark mode support structure)
 - Custom animations using tw-animate-css
-- WhatsApp-inspired color scheme with professional CRM aesthetics
+- Clean, minimalist design with professional CRM aesthetics
 
 **Code Organization**
 - `/client/src/components` - Reusable UI components including chat interface, CRM panel, and layout
@@ -83,14 +83,19 @@ Preferred communication style: Simple, everyday language.
 - Schema-first approach with TypeScript types generated from Drizzle schemas
 
 **Schema Design**
-- **Contacts**: Core CRM entity with name, phone, email, company, deal stage, tags, value, and notes
+- **Contacts**: Core CRM entity with name, phone, email, company, delivery addresses (array), and notes
 - **Messages**: Linked to contacts with content, sender ID, status, and timestamps
-- **Products**: Inventory items with name, description, category, price, stock quantity, unit, and SKU
-- **Orders**: Customer orders with contact reference, status, total, delivery date, and notes
+- **Products**: Inventory items with bakery categories (Bombons, Macarons, Fudge, Drágeas, Pão de Mel, Torrone), price, stock quantity, and unit
+- **Orders**: Customer orders with contact reference, status, total, delivery date/address, delivery fee, payment method, paid status, and notes
 - **Order Items**: Join table linking orders to products with quantity and unit price
 - **Ingredients**: Raw materials with name, unit, cost per unit, stock levels, minimum stock alerts, supplier info, and notes
 - **Recipes**: Product recipes with name, yield, yield unit, instructions, notes, and automatic cost calculation
 - **Recipe Items**: Join table linking recipes to ingredients with quantity for cost aggregation
+
+**Access Control**
+- Replit Auth for authentication
+- Email whitelist via ALLOWED_EMAILS environment variable (comma-separated)
+- isAllowed field in user response for authorization checks
 
 **Type Safety**
 - Drizzle-zod integration generates Zod schemas from database schema

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Phone, Mail, Building, Edit2, Save, Tag, DollarSign, Calendar, ShoppingCart, X, User, Trash2 } from "lucide-react";
+import { Search, Plus, Phone, Mail, Building, Edit2, Save, ShoppingCart, X, User, Trash2, MapPin, Image } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,28 +9,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useContacts, useUpdateContact, useCreateContact, useOrdersByContact, useProducts, useCreateOrder } from "@/lib/hooks";
-import type { ContactWithLastMessage, UpdateContact, DealStage, InsertContact } from "@shared/schema";
+import type { ContactWithLastMessage, UpdateContact, InsertContact } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
-const STAGE_COLORS: Record<DealStage, string> = {
-  "New": "bg-blue-100 text-blue-700",
-  "Qualified": "bg-purple-100 text-purple-700",
-  "Proposal": "bg-yellow-100 text-yellow-700",
-  "Negotiation": "bg-orange-100 text-orange-700",
-  "Closed Won": "bg-green-100 text-green-700",
-  "Closed Lost": "bg-red-100 text-red-700",
-};
-
-const STAGE_LABELS: Record<DealStage, string> = {
-  "New": "Novo",
-  "Qualified": "Qualificado",
-  "Proposal": "Proposta",
-  "Negotiation": "Negociação",
-  "Closed Won": "Fechado (Ganho)",
-  "Closed Lost": "Fechado (Perdido)",
-};
+const paymentMethods = [
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "pix", label: "PIX" },
+  { value: "cartao_credito", label: "Cartão de Crédito" },
+  { value: "cartao_debito", label: "Cartão de Débito" },
+  { value: "transferencia", label: "Transferência" },
+];
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending: { label: "Pendente", color: "bg-yellow-100 text-yellow-800" },
@@ -66,11 +57,10 @@ function ClientDetails({
     avatar: contact.avatar,
     email: contact.email,
     company: contact.company,
-    stage: contact.stage,
-    tags: contact.tags,
+    addresses: contact.addresses || [],
     notes: contact.notes,
-    value: contact.value,
   });
+  const [newAddress, setNewAddress] = useState("");
 
   const { data: orders = [] } = useOrdersByContact(contact.id);
   const { data: products = [] } = useProducts();
@@ -78,6 +68,10 @@ function ClientDetails({
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
   const [orderNotes, setOrderNotes] = useState("");
+  const [orderPaymentMethod, setOrderPaymentMethod] = useState("dinheiro");
+  const [orderIsPaid, setOrderIsPaid] = useState(false);
+  const [orderDeliveryFee, setOrderDeliveryFee] = useState("0");
+  const [orderDeliveryAddress, setOrderDeliveryAddress] = useState("");
 
   const handleSave = () => {
     onUpdateContact(contact.id, formData);
@@ -91,12 +85,28 @@ function ClientDetails({
       avatar: contact.avatar,
       email: contact.email,
       company: contact.company,
-      stage: contact.stage,
-      tags: contact.tags,
+      addresses: contact.addresses || [],
       notes: contact.notes,
-      value: contact.value,
     });
+    setNewAddress("");
     setIsEditing(false);
+  };
+
+  const addAddress = () => {
+    if (newAddress.trim()) {
+      setFormData({
+        ...formData,
+        addresses: [...(formData.addresses || []), newAddress.trim()],
+      });
+      setNewAddress("");
+    }
+  };
+
+  const removeAddress = (index: number) => {
+    setFormData({
+      ...formData,
+      addresses: (formData.addresses || []).filter((_, i) => i !== index),
+    });
   };
 
   const addOrderItem = () => {
@@ -121,10 +131,14 @@ function ClientDetails({
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return orderItems.reduce((sum, item) => {
       return sum + (Number(item.unitPrice) * item.quantity);
     }, 0);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() + Number(orderDeliveryFee || 0);
   };
 
   const handleCreateOrder = () => {
@@ -142,17 +156,29 @@ function ClientDetails({
         status: "pending",
         notes: orderNotes,
         total: calculateTotal().toFixed(2),
+        deliveryFee: orderDeliveryFee,
+        deliveryAddress: orderDeliveryAddress || null,
+        paymentMethod: orderPaymentMethod,
+        isPaid: orderIsPaid ? 1 : 0,
       },
       items,
     });
     setIsOrderDialogOpen(false);
     setOrderItems([]);
     setOrderNotes("");
+    setOrderPaymentMethod("dinheiro");
+    setOrderIsPaid(false);
+    setOrderDeliveryFee("0");
+    setOrderDeliveryAddress("");
   };
 
   const openOrderDialog = () => {
     setOrderItems([{ productId: 0, quantity: 1, unitPrice: "0" }]);
     setOrderNotes("");
+    setOrderPaymentMethod("dinheiro");
+    setOrderIsPaid(false);
+    setOrderDeliveryFee("0");
+    setOrderDeliveryAddress(contact.addresses?.[0] || "");
     setIsOrderDialogOpen(true);
   };
 
@@ -181,9 +207,6 @@ function ClientDetails({
               <h2 data-testid="text-contact-name" className="text-xl font-semibold text-gray-900">{contact.name}</h2>
               <p data-testid="text-contact-phone-header" className="text-sm text-gray-500">{contact.phone}</p>
             </div>
-            <Badge data-testid="badge-contact-stage-header" className={cn("ml-2", STAGE_COLORS[contact.stage as DealStage])}>
-              {STAGE_LABELS[contact.stage as DealStage] || contact.stage}
-            </Badge>
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
@@ -260,64 +283,69 @@ function ClientDetails({
                   )}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 col-span-2">
                   <Label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    <DollarSign className="w-3 h-3" /> Valor
+                    <Image className="w-3 h-3" /> Foto (URL)
                   </Label>
                   {isEditing ? (
                     <Input 
-                      data-testid="input-edit-value"
-                      type="number"
-                      value={formData.value || ""} 
-                      onChange={(e) => setFormData({...formData, value: Number(e.target.value)})}
+                      data-testid="input-edit-avatar"
+                      value={formData.avatar || ""} 
+                      onChange={(e) => setFormData({...formData, avatar: e.target.value})}
+                      placeholder="https://exemplo.com/foto.jpg"
                     />
                   ) : (
-                    <p data-testid="text-contact-value" className="text-sm font-medium text-gray-900">
-                      {contact.value ? `R$ ${contact.value.toLocaleString()}` : "—"}
+                    <p data-testid="text-contact-avatar" className="text-sm font-medium text-gray-900">
+                      {contact.avatar || "—"}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Estágio
+                  <MapPin className="w-3 h-3" /> Endereços de Entrega
                 </Label>
-                {isEditing ? (
-                  <Select 
-                    value={formData.stage as string} 
-                    onValueChange={(val) => setFormData({...formData, stage: val as DealStage})}
-                  >
-                    <SelectTrigger data-testid="select-edit-stage" className="w-full">
-                      <SelectValue placeholder="Selecionar estágio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="New">Novo</SelectItem>
-                      <SelectItem value="Qualified">Qualificado</SelectItem>
-                      <SelectItem value="Proposal">Proposta</SelectItem>
-                      <SelectItem value="Negotiation">Negociação</SelectItem>
-                      <SelectItem value="Closed Won">Fechado (Ganho)</SelectItem>
-                      <SelectItem value="Closed Lost">Fechado (Perdido)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge data-testid="badge-contact-stage" className={cn(STAGE_COLORS[contact.stage as DealStage])}>
-                    {STAGE_LABELS[contact.stage as DealStage] || contact.stage}
-                  </Badge>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <Tag className="w-3 h-3" /> Tags
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {contact.tags && contact.tags.length > 0 ? contact.tags.map(tag => (
-                    <span key={tag} className="px-2 py-1 bg-white border border-gray-200 text-gray-600 rounded text-xs">
-                      {tag}
-                    </span>
-                  )) : (
-                    <span className="text-sm text-gray-400">Sem tags</span>
+                <div className="space-y-2">
+                  {(isEditing ? formData.addresses : contact.addresses)?.map((address, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div data-testid={`text-address-${index}`} className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-sm">
+                        {address}
+                      </div>
+                      {isEditing && (
+                        <Button
+                          data-testid={`btn-remove-address-${index}`}
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500 hover:text-red-700 h-8 w-8"
+                          onClick={() => removeAddress(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {(!contact.addresses || contact.addresses.length === 0) && !isEditing && (
+                    <span className="text-sm text-gray-400">Sem endereços cadastrados</span>
+                  )}
+                  {isEditing && (
+                    <div className="flex gap-2">
+                      <Input
+                        data-testid="input-new-address"
+                        value={newAddress}
+                        onChange={(e) => setNewAddress(e.target.value)}
+                        placeholder="Novo endereço..."
+                        onKeyDown={(e) => e.key === "Enter" && addAddress()}
+                      />
+                      <Button
+                        data-testid="btn-add-address"
+                        variant="outline"
+                        size="sm"
+                        onClick={addAddress}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -402,6 +430,7 @@ function ClientDetails({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Novo Pedido - {contact.name}</DialogTitle>
+            <DialogDescription>Adicione itens, forma de pagamento e informações de entrega.</DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4 max-h-[50vh] overflow-auto">
@@ -468,11 +497,78 @@ function ClientDetails({
                     </div>
                   ))}
 
-                  <div className="flex justify-end pt-2 text-base font-bold border-t">
-                    Total: R$ {calculateTotal().toFixed(2)}
+                  <div className="flex justify-between pt-2 text-sm border-t">
+                    <span>Subtotal:</span>
+                    <span>R$ {calculateSubtotal().toFixed(2)}</span>
                   </div>
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Endereço de Entrega</Label>
+                <Select 
+                  value={orderDeliveryAddress} 
+                  onValueChange={setOrderDeliveryAddress}
+                >
+                  <SelectTrigger data-testid="select-dialog-delivery-address">
+                    <SelectValue placeholder="Selecione ou digite" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Retirar no local</SelectItem>
+                    {contact.addresses?.map((addr, i) => (
+                      <SelectItem key={i} value={addr}>{addr}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Taxa de Entrega</Label>
+                <Input
+                  data-testid="input-dialog-delivery-fee"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={orderDeliveryFee}
+                  onChange={(e) => setOrderDeliveryFee(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Forma de Pagamento</Label>
+                <Select value={orderPaymentMethod} onValueChange={setOrderPaymentMethod}>
+                  <SelectTrigger data-testid="select-dialog-payment-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((pm) => (
+                      <SelectItem key={pm.value} value={pm.value}>{pm.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Status do Pagamento</Label>
+                <div className="flex items-center gap-2 h-10">
+                  <Checkbox 
+                    id="isPaid"
+                    data-testid="checkbox-dialog-is-paid"
+                    checked={orderIsPaid}
+                    onCheckedChange={(checked) => setOrderIsPaid(checked === true)}
+                  />
+                  <label htmlFor="isPaid" className="text-sm cursor-pointer">
+                    Pago
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -484,6 +580,10 @@ function ClientDetails({
                 placeholder="Observações sobre o pedido"
                 rows={2}
               />
+            </div>
+
+            <div className="flex justify-end pt-2 text-lg font-bold border-t">
+              Total: R$ {calculateTotal().toFixed(2)}
             </div>
           </div>
 
@@ -515,8 +615,7 @@ export default function Home() {
     phone: "",
     email: "",
     company: "",
-    stage: "New",
-    tags: [],
+    addresses: [],
     notes: "",
   });
 
@@ -542,8 +641,7 @@ export default function Home() {
       phone: "",
       email: "",
       company: "",
-      stage: "New",
-      tags: [],
+      addresses: [],
       notes: "",
     });
     setIsAddDialogOpen(true);
@@ -633,9 +731,9 @@ export default function Home() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-gray-900 truncate">{contact.name}</span>
-                      <Badge className={cn("text-[10px]", STAGE_COLORS[contact.stage as DealStage])}>
-                        {STAGE_LABELS[contact.stage as DealStage] || contact.stage}
-                      </Badge>
+                      {contact.company && (
+                        <span className="text-xs text-gray-500">• {contact.company}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-gray-500">
                       <span className="flex items-center gap-1">
@@ -648,13 +746,6 @@ export default function Home() {
                       )}
                     </div>
                   </div>
-                  {contact.value && (
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-gray-900">
-                        R$ {contact.value.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

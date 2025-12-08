@@ -37,10 +37,8 @@ export const contacts = pgTable("contacts", {
   avatar: text("avatar"),
   email: text("email"),
   company: text("company"),
-  stage: text("stage").notNull().default("New"),
-  tags: text("tags").array().notNull().default(sql`ARRAY[]::text[]`),
+  addresses: text("addresses").array().notNull().default(sql`ARRAY[]::text[]`),
   notes: text("notes"),
-  value: integer("value"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -55,7 +53,6 @@ export const updateContactSchema = insertContactSchema.partial();
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type UpdateContact = z.infer<typeof updateContactSchema>;
-export type DealStage = "New" | "Qualified" | "Proposal" | "Negotiation" | "Closed Won" | "Closed Lost";
 
 export type ContactWithLastMessage = Contact & {
   lastMessage?: string;
@@ -118,6 +115,9 @@ export const orders = pgTable("orders", {
   status: text("status").notNull().default("pending"),
   deliveryDate: timestamp("delivery_date"),
   deliveryAddress: text("delivery_address"),
+  deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).default("0"),
+  paymentMethod: text("payment_method").default("dinheiro"),
+  isPaid: integer("is_paid").notNull().default(0),
   notes: text("notes"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
