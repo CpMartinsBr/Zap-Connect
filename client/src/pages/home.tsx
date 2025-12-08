@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Phone, Mail, Building, Edit2, Save, Tag, DollarSign, Calendar, Trash2, ShoppingCart, X, User } from "lucide-react";
+import { Search, Plus, Phone, Mail, Building, Edit2, Save, Tag, DollarSign, Calendar, ShoppingCart, X, User, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -171,36 +171,36 @@ function ClientDetails({
       <div className="flex-1 bg-white flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-4">
-            <Avatar className="w-14 h-14">
+            <Avatar data-testid="avatar-contact" className="w-14 h-14">
               <AvatarImage src={contact.avatar || undefined} />
               <AvatarFallback className="bg-primary/10 text-primary text-xl">
                 {contact.name.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">{contact.name}</h2>
-              <p className="text-sm text-gray-500">{contact.phone}</p>
+              <h2 data-testid="text-contact-name" className="text-xl font-semibold text-gray-900">{contact.name}</h2>
+              <p data-testid="text-contact-phone-header" className="text-sm text-gray-500">{contact.phone}</p>
             </div>
-            <Badge className={cn("ml-2", STAGE_COLORS[contact.stage as DealStage])}>
+            <Badge data-testid="badge-contact-stage-header" className={cn("ml-2", STAGE_COLORS[contact.stage as DealStage])}>
               {STAGE_LABELS[contact.stage as DealStage] || contact.stage}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <Button onClick={() => setIsEditing(true)} variant="outline" className="gap-2" disabled={isUpdating}>
+              <Button data-testid="btn-edit-contact" onClick={() => setIsEditing(true)} variant="outline" className="gap-2" disabled={isUpdating}>
                 <Edit2 className="w-4 h-4" /> Editar
               </Button>
             ) : (
               <>
-                <Button onClick={handleSave} className="gap-2 bg-primary hover:bg-primary/90" disabled={isUpdating}>
+                <Button data-testid="btn-save-contact-edit" onClick={handleSave} className="gap-2 bg-primary hover:bg-primary/90" disabled={isUpdating}>
                   <Save className="w-4 h-4" /> {isUpdating ? "Salvando..." : "Salvar"}
                 </Button>
-                <Button onClick={handleCancel} variant="outline" disabled={isUpdating}>
+                <Button data-testid="btn-cancel-contact-edit" onClick={handleCancel} variant="outline" disabled={isUpdating}>
                   Cancelar
                 </Button>
               </>
             )}
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-500">
+            <Button data-testid="btn-close-contact-details" variant="ghost" size="icon" onClick={onClose} className="text-gray-500">
               <X className="w-5 h-5" />
             </Button>
           </div>
@@ -221,11 +221,12 @@ function ClientDetails({
                   </Label>
                   {isEditing ? (
                     <Input 
+                      data-testid="input-edit-phone"
                       value={formData.phone || ""} 
                       onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">{contact.phone}</p>
+                    <p data-testid="text-contact-phone" className="text-sm font-medium text-gray-900">{contact.phone}</p>
                   )}
                 </div>
 
@@ -235,11 +236,12 @@ function ClientDetails({
                   </Label>
                   {isEditing ? (
                     <Input 
+                      data-testid="input-edit-email"
                       value={formData.email || ""} 
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">{contact.email || "—"}</p>
+                    <p data-testid="text-contact-email" className="text-sm font-medium text-gray-900">{contact.email || "—"}</p>
                   )}
                 </div>
 
@@ -249,11 +251,12 @@ function ClientDetails({
                   </Label>
                   {isEditing ? (
                     <Input 
+                      data-testid="input-edit-company"
                       value={formData.company || ""} 
                       onChange={(e) => setFormData({...formData, company: e.target.value})}
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">{contact.company || "—"}</p>
+                    <p data-testid="text-contact-company" className="text-sm font-medium text-gray-900">{contact.company || "—"}</p>
                   )}
                 </div>
 
@@ -263,12 +266,13 @@ function ClientDetails({
                   </Label>
                   {isEditing ? (
                     <Input 
+                      data-testid="input-edit-value"
                       type="number"
                       value={formData.value || ""} 
                       onChange={(e) => setFormData({...formData, value: Number(e.target.value)})}
                     />
                   ) : (
-                    <p className="text-sm font-medium text-gray-900">
+                    <p data-testid="text-contact-value" className="text-sm font-medium text-gray-900">
                       {contact.value ? `R$ ${contact.value.toLocaleString()}` : "—"}
                     </p>
                   )}
@@ -284,7 +288,7 @@ function ClientDetails({
                     value={formData.stage as string} 
                     onValueChange={(val) => setFormData({...formData, stage: val as DealStage})}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger data-testid="select-edit-stage" className="w-full">
                       <SelectValue placeholder="Selecionar estágio" />
                     </SelectTrigger>
                     <SelectContent>
@@ -297,7 +301,7 @@ function ClientDetails({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge className={cn(STAGE_COLORS[contact.stage as DealStage])}>
+                  <Badge data-testid="badge-contact-stage" className={cn(STAGE_COLORS[contact.stage as DealStage])}>
                     {STAGE_LABELS[contact.stage as DealStage] || contact.stage}
                   </Badge>
                 )}
@@ -324,13 +328,14 @@ function ClientDetails({
               <h3 className="font-semibold text-gray-800">Notas</h3>
               {isEditing ? (
                 <Textarea 
+                  data-testid="input-edit-notes"
                   value={formData.notes || ""} 
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
                   className="min-h-[150px] bg-white"
                   placeholder="Adicione observações sobre o cliente..."
                 />
               ) : (
-                <div className="bg-white p-4 rounded-md border border-gray-100 min-h-[150px] text-sm text-gray-700">
+                <div data-testid="text-contact-notes" className="bg-white p-4 rounded-md border border-gray-100 min-h-[150px] text-sm text-gray-700">
                   {contact.notes || <span className="text-gray-400 italic">Sem notas.</span>}
                 </div>
               )}
