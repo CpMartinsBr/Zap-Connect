@@ -3,6 +3,25 @@ import { pgTable, text, integer, serial, timestamp, numeric, varchar, jsonb, ind
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ============ COMPANIES (Multi-tenant) ============
+export type PlanType = "free" | "starter" | "professional" | "enterprise";
+
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  plan: text("plan").notNull().default("free"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Company = typeof companies.$inferSelect;
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
 // ============ AUTH (Replit Auth) ============
 // Session storage table - mandatory for Replit Auth
 export const sessions = pgTable(
@@ -22,6 +41,8 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  companyId: integer("company_id").references(() => companies.id),
+  role: text("role").default("member"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -29,11 +50,16 @@ export const users = pgTable("users", {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+export type UserWithCompany = User & {
+  company?: Company | null;
+};
+
 // ============ CONTACTS ============
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   name: text("name").notNull(),
-  phone: text("phone").notNull().unique(),
+  phone: text("phone").notNull(),
   avatar: text("avatar"),
   email: text("email"),
   company: text("company"),
@@ -63,6 +89,7 @@ export type ContactWithLastMessage = Contact & {
 // ============ MESSAGES ============
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   senderId: integer("sender_id").notNull(),
@@ -81,6 +108,7 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 // ============ PRODUCTS (Inventory) ============
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   name: text("name").notNull(),
   description: text("description"),
   category: text("category").notNull().default("Produto"),
@@ -111,6 +139,7 @@ export type OrderStatus = "pending" | "confirmed" | "preparing" | "ready" | "del
 
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   contactId: integer("contact_id").notNull().references(() => contacts.id),
   status: text("status").notNull().default("pending"),
   orderDate: timestamp("order_date").defaultNow().notNull(),
@@ -141,6 +170,7 @@ export type UpdateOrder = z.infer<typeof updateOrderSchema>;
 // ============ ORDER ITEMS ============
 export const orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
   productId: integer("product_id").notNull().references(() => products.id),
   quantity: integer("quantity").notNull().default(1),
@@ -168,6 +198,7 @@ export type IngredientKind = "ingredient" | "packaging";
 
 export const ingredients = pgTable("ingredients", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   name: text("name").notNull(),
   kind: text("kind").notNull().default("ingredient"),
   unit: text("unit").notNull().default("g"),
@@ -194,6 +225,7 @@ export type UpdateIngredient = z.infer<typeof updateIngredientSchema>;
 // ============ RECIPES ============
 export const recipes = pgTable("recipes", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   yield: integer("yield").default(1),
@@ -218,6 +250,7 @@ export type UpdateRecipe = z.infer<typeof updateRecipeSchema>;
 // ============ RECIPE ITEMS (Ingredients in Recipes) ============
 export const recipeItems = pgTable("recipe_items", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   recipeId: integer("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
   ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
   quantity: numeric("quantity", { precision: 10, scale: 4 }).notNull(),
@@ -241,6 +274,7 @@ export type RecipeWithItems = Recipe & {
 // ============ PRODUCT RECIPE COMPONENTS ============
 export const productRecipeComponents = pgTable("product_recipe_components", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   recipeId: integer("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
   quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
@@ -256,6 +290,7 @@ export type InsertProductRecipeComponent = z.infer<typeof insertProductRecipeCom
 // ============ PRODUCT PACKAGING COMPONENTS ============
 export const productPackagingComponents = pgTable("product_packaging_components", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
   productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
   quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),

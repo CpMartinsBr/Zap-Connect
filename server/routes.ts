@@ -1,7 +1,7 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { storage, type ITenantStorage } from "./storage";
+import { setupAuth, isAuthenticated, withTenantContext, requireCompany, type TenantContext } from "./replitAuth";
 import { 
   insertContactSchema, 
   updateContactSchema, 
@@ -22,12 +22,26 @@ import {
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 
+declare global {
+  namespace Express {
+    interface Request {
+      tenantStorage?: ITenantStorage;
+    }
+  }
+}
+
+const tenantMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  if (req.tenant?.companyId) {
+    req.tenantStorage = storage.forTenant(req.tenant.companyId);
+  }
+  next();
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // ============ AUTH (Replit Auth) ============
   await setupAuth(app);
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -38,7 +52,13 @@ export async function registerRoutes(
       if (user) {
         const allowedEmails = (process.env.ALLOWED_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
         const isAllowed = allowedEmails.length === 0 || allowedEmails.includes(user.email?.toLowerCase() || "");
-        res.json({ ...user, isAllowed });
+        
+        let company = null;
+        if (user.companyId) {
+          company = await storage.getCompany(user.companyId);
+        }
+        
+        res.json({ ...user, isAllowed, company });
       } else {
         res.json(user);
       }
@@ -48,20 +68,25 @@ export async function registerRoutes(
     }
   });
 
-  // ============ CONTACTS ============
-  app.get("/api/contacts", async (req, res) => {
+  app.get("/api/contacts", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const contacts = await storage.getAllContacts();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated. Please contact admin." });
+      }
+      const contacts = await req.tenantStorage.getAllContacts();
       res.json(contacts);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/contacts/:id", async (req, res) => {
+  app.get("/api/contacts/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const contact = await storage.getContact(id);
+      const contact = await req.tenantStorage.getContact(id);
       if (!contact) {
         return res.status(404).json({ error: "Contact not found" });
       }
@@ -71,10 +96,13 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/contacts", async (req, res) => {
+  app.post("/api/contacts", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const validatedData = insertContactSchema.parse(req.body);
-      const contact = await storage.createContact(validatedData);
+      const contact = await req.tenantStorage.createContact(validatedData);
       res.status(201).json(contact);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -84,11 +112,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/contacts/:id", async (req, res) => {
+  app.patch("/api/contacts/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const validatedData = updateContactSchema.parse(req.body);
-      const contact = await storage.updateContact(id, validatedData);
+      const contact = await req.tenantStorage.updateContact(id, validatedData);
       if (!contact) {
         return res.status(404).json({ error: "Contact not found" });
       }
@@ -101,31 +132,39 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/contacts/:id", async (req, res) => {
+  app.delete("/api/contacts/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      await storage.deleteContact(id);
+      await req.tenantStorage.deleteContact(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============ MESSAGES ============
-  app.get("/api/contacts/:id/messages", async (req, res) => {
+  app.get("/api/contacts/:id/messages", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const contactId = parseInt(req.params.id);
-      const messages = await storage.getMessagesByContact(contactId);
+      const messages = await req.tenantStorage.getMessagesByContact(contactId);
       res.json(messages);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/messages", async (req, res) => {
+  app.post("/api/messages", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const validatedData = insertMessageSchema.parse(req.body);
-      const message = await storage.createMessage(validatedData);
+      const message = await req.tenantStorage.createMessage(validatedData);
       res.status(201).json(message);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -135,20 +174,25 @@ export async function registerRoutes(
     }
   });
 
-  // ============ PRODUCTS ============
-  app.get("/api/products", async (req, res) => {
+  app.get("/api/products", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const products = await storage.getAllProducts();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      const products = await req.tenantStorage.getAllProducts();
       res.json(products);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/products/:id", async (req, res) => {
+  app.get("/api/products/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const product = await storage.getProduct(id);
+      const product = await req.tenantStorage.getProduct(id);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -158,10 +202,13 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const validatedData = insertProductSchema.parse(req.body);
-      const product = await storage.createProduct(validatedData);
+      const product = await req.tenantStorage.createProduct(validatedData);
       res.status(201).json(product);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -171,11 +218,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/products/:id", async (req, res) => {
+  app.patch("/api/products/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const validatedData = updateProductSchema.parse(req.body);
-      const product = await storage.updateProduct(id, validatedData);
+      const product = await req.tenantStorage.updateProduct(id, validatedData);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -188,11 +238,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/products/:id/stock", async (req, res) => {
+  app.patch("/api/products/:id/stock", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const { quantity } = z.object({ quantity: z.number() }).parse(req.body);
-      const product = await storage.updateStock(id, quantity);
+      const product = await req.tenantStorage.updateStock(id, quantity);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -205,30 +258,38 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/products/:id", async (req, res) => {
+  app.delete("/api/products/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      await storage.deleteProduct(id);
+      await req.tenantStorage.deleteProduct(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============ PRODUCT COMPONENTS ============
-  app.get("/api/products-with-components", async (req, res) => {
+  app.get("/api/products-with-components", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const products = await storage.getAllProductsWithComponents();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      const products = await req.tenantStorage.getAllProductsWithComponents();
       res.json(products);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/products/:id/components", async (req, res) => {
+  app.get("/api/products/:id/components", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const product = await storage.getProductWithComponents(id);
+      const product = await req.tenantStorage.getProductWithComponents(id);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -249,13 +310,16 @@ export async function registerRoutes(
     })),
   });
 
-  app.put("/api/products/:id/components", async (req, res) => {
+  app.put("/api/products/:id/components", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const { recipeComponents, packagingComponents } = setComponentsSchema.parse(req.body);
       
-      await storage.setProductComponents(id, recipeComponents, packagingComponents);
-      const product = await storage.getProductWithComponents(id);
+      await req.tenantStorage.setProductComponents(id, recipeComponents, packagingComponents);
+      const product = await req.tenantStorage.getProductWithComponents(id);
       res.json(product);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -265,20 +329,25 @@ export async function registerRoutes(
     }
   });
 
-  // ============ ORDERS ============
-  app.get("/api/orders", async (req, res) => {
+  app.get("/api/orders", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const orders = await storage.getAllOrders();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      const orders = await req.tenantStorage.getAllOrders();
       res.json(orders);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/orders/:id", async (req, res) => {
+  app.get("/api/orders/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const order = await storage.getOrder(id);
+      const order = await req.tenantStorage.getOrder(id);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
@@ -288,10 +357,13 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/contacts/:id/orders", async (req, res) => {
+  app.get("/api/contacts/:id/orders", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const contactId = parseInt(req.params.id);
-      const orders = await storage.getOrdersByContact(contactId);
+      const orders = await req.tenantStorage.getOrdersByContact(contactId);
       res.json(orders);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -307,10 +379,13 @@ export async function registerRoutes(
     items: z.array(insertOrderItemSchema.omit({ orderId: true })),
   });
 
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const { order, items } = createOrderSchema.parse(req.body);
-      const newOrder = await storage.createOrder(order as any, items.map(item => ({ ...item, orderId: 0 })));
+      const newOrder = await req.tenantStorage.createOrder(order as any, items.map(item => ({ ...item, orderId: 0 })));
       res.status(201).json(newOrder);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -326,11 +401,14 @@ export async function registerRoutes(
     ),
   });
 
-  app.patch("/api/orders/:id", async (req, res) => {
+  app.patch("/api/orders/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const validatedData = updateOrderSchemaWithDateTransform.parse(req.body);
-      const order = await storage.updateOrder(id, validatedData as any);
+      const order = await req.tenantStorage.updateOrder(id, validatedData as any);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
@@ -343,30 +421,38 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/orders/:id", async (req, res) => {
+  app.delete("/api/orders/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      await storage.deleteOrder(id);
+      await req.tenantStorage.deleteOrder(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============ INGREDIENTS ============
-  app.get("/api/ingredients", async (req, res) => {
+  app.get("/api/ingredients", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const ingredients = await storage.getAllIngredients();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      const ingredients = await req.tenantStorage.getAllIngredients();
       res.json(ingredients);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/ingredients/:id", async (req, res) => {
+  app.get("/api/ingredients/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const ingredient = await storage.getIngredient(id);
+      const ingredient = await req.tenantStorage.getIngredient(id);
       if (!ingredient) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
@@ -376,10 +462,13 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/ingredients", async (req, res) => {
+  app.post("/api/ingredients", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const validatedData = insertIngredientSchema.parse(req.body);
-      const ingredient = await storage.createIngredient(validatedData);
+      const ingredient = await req.tenantStorage.createIngredient(validatedData);
       res.status(201).json(ingredient);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -389,11 +478,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/ingredients/:id", async (req, res) => {
+  app.patch("/api/ingredients/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const validatedData = updateIngredientSchema.parse(req.body);
-      const ingredient = await storage.updateIngredient(id, validatedData);
+      const ingredient = await req.tenantStorage.updateIngredient(id, validatedData);
       if (!ingredient) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
@@ -406,30 +498,38 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/ingredients/:id", async (req, res) => {
+  app.delete("/api/ingredients/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      await storage.deleteIngredient(id);
+      await req.tenantStorage.deleteIngredient(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============ RECIPES ============
-  app.get("/api/recipes", async (req, res) => {
+  app.get("/api/recipes", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
-      const recipes = await storage.getAllRecipes();
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      const recipes = await req.tenantStorage.getAllRecipes();
       res.json(recipes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/recipes/:id", async (req, res) => {
+  app.get("/api/recipes/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const recipe = await storage.getRecipe(id);
+      const recipe = await req.tenantStorage.getRecipe(id);
       if (!recipe) {
         return res.status(404).json({ error: "Recipe not found" });
       }
@@ -439,10 +539,13 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/products/:id/recipe", async (req, res) => {
+  app.get("/api/products/:id/recipe", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const productId = parseInt(req.params.id);
-      const recipe = await storage.getRecipeByProduct(productId);
+      const recipe = await req.tenantStorage.getRecipeByProduct(productId);
       if (!recipe) {
         return res.status(404).json({ error: "Recipe not found for this product" });
       }
@@ -457,10 +560,13 @@ export async function registerRoutes(
     items: z.array(insertRecipeItemSchema.omit({ recipeId: true })),
   });
 
-  app.post("/api/recipes", async (req, res) => {
+  app.post("/api/recipes", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const { recipe, items } = createRecipeSchema.parse(req.body);
-      const newRecipe = await storage.createRecipe(recipe, items.map(item => ({ ...item, recipeId: 0 })));
+      const newRecipe = await req.tenantStorage.createRecipe(recipe, items.map(item => ({ ...item, recipeId: 0 })));
       res.status(201).json(newRecipe);
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -475,11 +581,14 @@ export async function registerRoutes(
     items: z.array(insertRecipeItemSchema.omit({ recipeId: true })).optional(),
   });
 
-  app.patch("/api/recipes/:id", async (req, res) => {
+  app.patch("/api/recipes/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
       const { recipe: updates, items } = updateRecipeWithItemsSchema.parse(req.body);
-      const recipe = await storage.updateRecipe(
+      const recipe = await req.tenantStorage.updateRecipe(
         id, 
         updates, 
         items ? items.map(item => ({ ...item, recipeId: id })) : undefined
@@ -496,23 +605,55 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/recipes/:id", async (req, res) => {
+  app.delete("/api/recipes/:id", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      await storage.deleteRecipe(id);
+      await req.tenantStorage.deleteRecipe(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/recipes/:id/create-product", async (req, res) => {
+  app.post("/api/recipes/:id/create-product", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
     try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
       const id = parseInt(req.params.id);
-      const product = await storage.createProductFromRecipe(id);
+      const product = await req.tenantStorage.createProductFromRecipe(id);
       res.status(201).json(product);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/setup-company", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name, slug } = z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+      }).parse(req.body);
+
+      const existingCompany = await storage.getCompanyBySlug(slug);
+      if (existingCompany) {
+        return res.status(400).json({ error: "Company with this slug already exists" });
+      }
+
+      const company = await storage.createCompany({ name, slug, plan: "free" });
+
+      const userId = req.user.claims.sub;
+      await storage.assignUserToCompany(userId, company.id);
+
+      res.status(201).json(company);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
     }
   });
 

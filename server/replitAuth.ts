@@ -3,10 +3,24 @@ import { Strategy, type VerifyFunction } from "openid-client/passport";
 
 import passport from "passport";
 import session from "express-session";
-import type { Express, RequestHandler } from "express";
+import type { Express, Request, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+
+export interface TenantContext {
+  userId: string;
+  companyId: number | null;
+  email: string | null;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      tenant?: TenantContext;
+    }
+  }
+}
 
 const getOidcConfig = memoize(
   async () => {
@@ -155,4 +169,41 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
+};
+
+export const withTenantContext: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+  
+  if (!user?.claims?.sub) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  try {
+    const userId = user.claims.sub;
+    const dbUser = await storage.getUser(userId);
+    
+    if (!dbUser) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.tenant = {
+      userId: dbUser.id,
+      companyId: dbUser.companyId ?? null,
+      email: dbUser.email ?? null,
+    };
+
+    return next();
+  } catch (error) {
+    console.error("Error loading tenant context:", error);
+    return res.status(500).json({ message: "Error loading user context" });
+  }
+};
+
+export const requireCompany: RequestHandler = (req, res, next) => {
+  if (!req.tenant?.companyId) {
+    return res.status(403).json({ 
+      message: "No company associated with user. Please contact admin." 
+    });
+  }
+  return next();
 };

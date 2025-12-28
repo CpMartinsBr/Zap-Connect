@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { eq, desc, sql, asc } from "drizzle-orm";
+import { eq, desc, sql, asc, and } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type {
   User,
@@ -34,6 +34,8 @@ import type {
   ProductPackagingComponent,
   InsertProductPackagingComponent,
   ProductWithComponents,
+  Company,
+  InsertCompany,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -44,23 +46,30 @@ const pool = new Pool({
 
 const db = drizzle(pool, { schema });
 
-export interface IStorage {
-  // Users (Replit Auth)
+export interface IRootStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  
+  getCompany(id: number): Promise<Company | undefined>;
+  getCompanyBySlug(slug: string): Promise<Company | undefined>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  assignUserToCompany(userId: string, companyId: number): Promise<User | undefined>;
+  
+  forTenant(companyId: number): ITenantStorage;
+}
 
-  // Contacts
+export interface ITenantStorage {
+  readonly companyId: number;
+
   getAllContacts(): Promise<ContactWithLastMessage[]>;
   getContact(id: number): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, updates: UpdateContact): Promise<Contact | undefined>;
   deleteContact(id: number): Promise<void>;
 
-  // Messages
   getMessagesByContact(contactId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
 
-  // Products
   getAllProducts(): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
@@ -68,7 +77,6 @@ export interface IStorage {
   deleteProduct(id: number): Promise<void>;
   updateStock(id: number, quantity: number): Promise<Product | undefined>;
 
-  // Orders
   getAllOrders(): Promise<OrderWithItems[]>;
   getOrder(id: number): Promise<OrderWithItems | undefined>;
   getOrdersByContact(contactId: number): Promise<OrderWithItems[]>;
@@ -76,14 +84,12 @@ export interface IStorage {
   updateOrder(id: number, updates: UpdateOrder): Promise<Order | undefined>;
   deleteOrder(id: number): Promise<void>;
 
-  // Ingredients
   getAllIngredients(): Promise<Ingredient[]>;
   getIngredient(id: number): Promise<Ingredient | undefined>;
   createIngredient(ingredient: InsertIngredient): Promise<Ingredient>;
   updateIngredient(id: number, updates: UpdateIngredient): Promise<Ingredient | undefined>;
   deleteIngredient(id: number): Promise<void>;
 
-  // Recipes
   getAllRecipes(): Promise<RecipeWithItems[]>;
   getRecipe(id: number): Promise<RecipeWithItems | undefined>;
   getRecipeByProduct(productId: number): Promise<RecipeWithItems | undefined>;
@@ -92,7 +98,6 @@ export interface IStorage {
   deleteRecipe(id: number): Promise<void>;
   createProductFromRecipe(recipeId: number): Promise<Product>;
 
-  // Product Components
   getProductWithComponents(id: number): Promise<ProductWithComponents | undefined>;
   getAllProductsWithComponents(): Promise<ProductWithComponents[]>;
   setProductComponents(
@@ -103,33 +108,14 @@ export interface IStorage {
   calculateProductCost(productId: number): Promise<number>;
 }
 
-export class DatabaseStorage implements IStorage {
-  // ============ USERS (Replit Auth) ============
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
-    return user;
-  }
+class TenantStorage implements ITenantStorage {
+  constructor(public readonly companyId: number) {}
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(schema.users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: schema.users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
-  }
-
-  // ============ CONTACTS ============
   async getAllContacts(): Promise<ContactWithLastMessage[]> {
     const allContacts = await db
       .select()
       .from(schema.contacts)
+      .where(eq(schema.contacts.companyId, this.companyId))
       .orderBy(desc(schema.contacts.updatedAt));
 
     const contactsWithMessages = await Promise.all(
@@ -137,7 +123,10 @@ export class DatabaseStorage implements IStorage {
         const lastMessages = await db
           .select()
           .from(schema.messages)
-          .where(eq(schema.messages.contactId, contact.id))
+          .where(and(
+            eq(schema.messages.contactId, contact.id),
+            eq(schema.messages.companyId, this.companyId)
+          ))
           .orderBy(desc(schema.messages.createdAt))
           .limit(1);
 
@@ -147,7 +136,7 @@ export class DatabaseStorage implements IStorage {
           .select({ count: sql<number>`count(*)::int` })
           .from(schema.messages)
           .where(
-            sql`${schema.messages.contactId} = ${contact.id} AND ${schema.messages.senderId} != 0 AND ${schema.messages.status} != 'read'`
+            sql`${schema.messages.contactId} = ${contact.id} AND ${schema.messages.companyId} = ${this.companyId} AND ${schema.messages.senderId} != 0 AND ${schema.messages.status} != 'read'`
           );
 
         return {
@@ -171,7 +160,10 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select()
       .from(schema.contacts)
-      .where(eq(schema.contacts.id, id))
+      .where(and(
+        eq(schema.contacts.id, id),
+        eq(schema.contacts.companyId, this.companyId)
+      ))
       .limit(1);
     return results[0];
   }
@@ -179,7 +171,7 @@ export class DatabaseStorage implements IStorage {
   async createContact(contact: InsertContact): Promise<Contact> {
     const results = await db
       .insert(schema.contacts)
-      .values(contact)
+      .values({ ...contact, companyId: this.companyId })
       .returning();
     return results[0];
   }
@@ -191,43 +183,62 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .update(schema.contacts)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(schema.contacts.id, id))
+      .where(and(
+        eq(schema.contacts.id, id),
+        eq(schema.contacts.companyId, this.companyId)
+      ))
       .returning();
     return results[0];
   }
 
   async deleteContact(id: number): Promise<void> {
-    await db.delete(schema.contacts).where(eq(schema.contacts.id, id));
+    await db.delete(schema.contacts).where(and(
+      eq(schema.contacts.id, id),
+      eq(schema.contacts.companyId, this.companyId)
+    ));
   }
 
-  // ============ MESSAGES ============
   async getMessagesByContact(contactId: number): Promise<Message[]> {
+    const contact = await this.getContact(contactId);
+    if (!contact) return [];
+    
     return await db
       .select()
       .from(schema.messages)
-      .where(eq(schema.messages.contactId, contactId))
+      .where(and(
+        eq(schema.messages.contactId, contactId),
+        eq(schema.messages.companyId, this.companyId)
+      ))
       .orderBy(schema.messages.createdAt);
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
+    const contact = await this.getContact(message.contactId);
+    if (!contact) {
+      throw new Error("Contact not found or access denied");
+    }
+    
     const results = await db
       .insert(schema.messages)
-      .values(message)
+      .values({ ...message, companyId: this.companyId })
       .returning();
     
     await db
       .update(schema.contacts)
       .set({ updatedAt: new Date() })
-      .where(eq(schema.contacts.id, message.contactId));
+      .where(and(
+        eq(schema.contacts.id, message.contactId),
+        eq(schema.contacts.companyId, this.companyId)
+      ));
 
     return results[0];
   }
 
-  // ============ PRODUCTS ============
   async getAllProducts(): Promise<Product[]> {
     return await db
       .select()
       .from(schema.products)
+      .where(eq(schema.products.companyId, this.companyId))
       .orderBy(asc(schema.products.name));
   }
 
@@ -235,7 +246,10 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select()
       .from(schema.products)
-      .where(eq(schema.products.id, id))
+      .where(and(
+        eq(schema.products.id, id),
+        eq(schema.products.companyId, this.companyId)
+      ))
       .limit(1);
     return results[0];
   }
@@ -243,7 +257,7 @@ export class DatabaseStorage implements IStorage {
   async createProduct(product: InsertProduct): Promise<Product> {
     const results = await db
       .insert(schema.products)
-      .values(product)
+      .values({ ...product, companyId: this.companyId })
       .returning();
     return results[0];
   }
@@ -255,13 +269,19 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .update(schema.products)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(schema.products.id, id))
+      .where(and(
+        eq(schema.products.id, id),
+        eq(schema.products.companyId, this.companyId)
+      ))
       .returning();
     return results[0];
   }
 
   async deleteProduct(id: number): Promise<void> {
-    await db.delete(schema.products).where(eq(schema.products.id, id));
+    await db.delete(schema.products).where(and(
+      eq(schema.products.id, id),
+      eq(schema.products.companyId, this.companyId)
+    ));
   }
 
   async updateStock(id: number, quantity: number): Promise<Product | undefined> {
@@ -271,16 +291,19 @@ export class DatabaseStorage implements IStorage {
         stock: sql`${schema.products.stock} + ${quantity}`,
         updatedAt: new Date() 
       })
-      .where(eq(schema.products.id, id))
+      .where(and(
+        eq(schema.products.id, id),
+        eq(schema.products.companyId, this.companyId)
+      ))
       .returning();
     return results[0];
   }
 
-  // ============ ORDERS ============
   async getAllOrders(): Promise<OrderWithItems[]> {
     const allOrders = await db
       .select()
       .from(schema.orders)
+      .where(eq(schema.orders.companyId, this.companyId))
       .orderBy(desc(schema.orders.createdAt));
 
     return await Promise.all(
@@ -292,7 +315,10 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select()
       .from(schema.orders)
-      .where(eq(schema.orders.id, id))
+      .where(and(
+        eq(schema.orders.id, id),
+        eq(schema.orders.companyId, this.companyId)
+      ))
       .limit(1);
     
     if (!results[0]) return undefined;
@@ -300,10 +326,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrdersByContact(contactId: number): Promise<OrderWithItems[]> {
+    const contact = await this.getContact(contactId);
+    if (!contact) return [];
+    
     const orders = await db
       .select()
       .from(schema.orders)
-      .where(eq(schema.orders.contactId, contactId))
+      .where(and(
+        eq(schema.orders.contactId, contactId),
+        eq(schema.orders.companyId, this.companyId)
+      ))
       .orderBy(desc(schema.orders.createdAt));
 
     return await Promise.all(
@@ -315,7 +347,10 @@ export class DatabaseStorage implements IStorage {
     const items = await db
       .select()
       .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, order.id));
+      .where(and(
+        eq(schema.orderItems.orderId, order.id),
+        eq(schema.orderItems.companyId, this.companyId)
+      ));
 
     const itemsWithProducts = await Promise.all(
       items.map(async (item) => {
@@ -334,18 +369,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
+    const contact = await this.getContact(order.contactId);
+    if (!contact) {
+      throw new Error("Contact not found or access denied");
+    }
+    
     const [newOrder] = await db
       .insert(schema.orders)
-      .values(order)
+      .values({ ...order, companyId: this.companyId })
       .returning();
 
     for (const item of items) {
+      const product = await this.getProduct(item.productId);
+      if (!product) {
+        throw new Error(`Product ${item.productId} not found or access denied`);
+      }
+      
       await db.insert(schema.orderItems).values({
         ...item,
         orderId: newOrder.id,
+        companyId: this.companyId,
       });
       
-      // Decrease stock
       await this.updateStock(item.productId, -(item.quantity || 1));
     }
 
@@ -359,30 +404,41 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .update(schema.orders)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(schema.orders.id, id))
+      .where(and(
+        eq(schema.orders.id, id),
+        eq(schema.orders.companyId, this.companyId)
+      ))
       .returning();
     return results[0];
   }
 
   async deleteOrder(id: number): Promise<void> {
-    // Get items to restore stock
+    const order = await this.getOrder(id);
+    if (!order) return;
+
     const items = await db
       .select()
       .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, id));
+      .where(and(
+        eq(schema.orderItems.orderId, id),
+        eq(schema.orderItems.companyId, this.companyId)
+      ));
 
     for (const item of items) {
       await this.updateStock(item.productId, item.quantity);
     }
 
-    await db.delete(schema.orders).where(eq(schema.orders.id, id));
+    await db.delete(schema.orders).where(and(
+      eq(schema.orders.id, id),
+      eq(schema.orders.companyId, this.companyId)
+    ));
   }
 
-  // ============ INGREDIENTS ============
   async getAllIngredients(): Promise<Ingredient[]> {
     return await db
       .select()
       .from(schema.ingredients)
+      .where(eq(schema.ingredients.companyId, this.companyId))
       .orderBy(asc(schema.ingredients.name));
   }
 
@@ -390,7 +446,10 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select()
       .from(schema.ingredients)
-      .where(eq(schema.ingredients.id, id))
+      .where(and(
+        eq(schema.ingredients.id, id),
+        eq(schema.ingredients.companyId, this.companyId)
+      ))
       .limit(1);
     return results[0];
   }
@@ -398,7 +457,7 @@ export class DatabaseStorage implements IStorage {
   async createIngredient(ingredient: InsertIngredient): Promise<Ingredient> {
     const results = await db
       .insert(schema.ingredients)
-      .values(ingredient)
+      .values({ ...ingredient, companyId: this.companyId })
       .returning();
     return results[0];
   }
@@ -410,20 +469,26 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .update(schema.ingredients)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(schema.ingredients.id, id))
+      .where(and(
+        eq(schema.ingredients.id, id),
+        eq(schema.ingredients.companyId, this.companyId)
+      ))
       .returning();
     return results[0];
   }
 
   async deleteIngredient(id: number): Promise<void> {
-    await db.delete(schema.ingredients).where(eq(schema.ingredients.id, id));
+    await db.delete(schema.ingredients).where(and(
+      eq(schema.ingredients.id, id),
+      eq(schema.ingredients.companyId, this.companyId)
+    ));
   }
 
-  // ============ RECIPES ============
   async getAllRecipes(): Promise<RecipeWithItems[]> {
     const allRecipes = await db
       .select()
       .from(schema.recipes)
+      .where(eq(schema.recipes.companyId, this.companyId))
       .orderBy(asc(schema.recipes.name));
 
     return await Promise.all(
@@ -435,7 +500,10 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select()
       .from(schema.recipes)
-      .where(eq(schema.recipes.id, id))
+      .where(and(
+        eq(schema.recipes.id, id),
+        eq(schema.recipes.companyId, this.companyId)
+      ))
       .limit(1);
     
     if (!results[0]) return undefined;
@@ -443,10 +511,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRecipeByProduct(productId: number): Promise<RecipeWithItems | undefined> {
+    const product = await this.getProduct(productId);
+    if (!product) return undefined;
+    
     const results = await db
       .select()
       .from(schema.recipes)
-      .where(eq(schema.recipes.productId, productId))
+      .where(and(
+        eq(schema.recipes.productId, productId),
+        eq(schema.recipes.companyId, this.companyId)
+      ))
       .limit(1);
     
     if (!results[0]) return undefined;
@@ -457,7 +531,10 @@ export class DatabaseStorage implements IStorage {
     const items = await db
       .select()
       .from(schema.recipeItems)
-      .where(eq(schema.recipeItems.recipeId, recipe.id));
+      .where(and(
+        eq(schema.recipeItems.recipeId, recipe.id),
+        eq(schema.recipeItems.companyId, this.companyId)
+      ));
 
     const itemsWithIngredients = await Promise.all(
       items.map(async (item) => {
@@ -468,7 +545,6 @@ export class DatabaseStorage implements IStorage {
 
     const product = recipe.productId ? await this.getProduct(recipe.productId) : null;
     
-    // Calculate total cost
     let totalCost = 0;
     for (const item of itemsWithIngredients) {
       if (item.ingredient) {
@@ -491,15 +567,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRecipe(recipe: InsertRecipe, items: InsertRecipeItem[]): Promise<Recipe> {
+    for (const item of items) {
+      const ingredient = await this.getIngredient(item.ingredientId);
+      if (!ingredient) {
+        throw new Error(`Ingredient ${item.ingredientId} not found or access denied`);
+      }
+    }
+    
     const [newRecipe] = await db
       .insert(schema.recipes)
-      .values(recipe)
+      .values({ ...recipe, companyId: this.companyId })
       .returning();
 
     for (const item of items) {
       await db.insert(schema.recipeItems).values({
         ...item,
         recipeId: newRecipe.id,
+        companyId: this.companyId,
       });
     }
 
@@ -511,20 +595,36 @@ export class DatabaseStorage implements IStorage {
     updates: UpdateRecipe,
     items?: InsertRecipeItem[]
   ): Promise<Recipe | undefined> {
+    const existing = await this.getRecipe(id);
+    if (!existing) return undefined;
+    
     const results = await db
       .update(schema.recipes)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(schema.recipes.id, id))
+      .where(and(
+        eq(schema.recipes.id, id),
+        eq(schema.recipes.companyId, this.companyId)
+      ))
       .returning();
 
     if (results[0] && items) {
-      // Delete existing items and insert new ones
-      await db.delete(schema.recipeItems).where(eq(schema.recipeItems.recipeId, id));
+      for (const item of items) {
+        const ingredient = await this.getIngredient(item.ingredientId);
+        if (!ingredient) {
+          throw new Error(`Ingredient ${item.ingredientId} not found or access denied`);
+        }
+      }
+      
+      await db.delete(schema.recipeItems).where(and(
+        eq(schema.recipeItems.recipeId, id),
+        eq(schema.recipeItems.companyId, this.companyId)
+      ));
       
       for (const item of items) {
         await db.insert(schema.recipeItems).values({
           ...item,
           recipeId: id,
+          companyId: this.companyId,
         });
       }
     }
@@ -533,7 +633,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRecipe(id: number): Promise<void> {
-    await db.delete(schema.recipes).where(eq(schema.recipes.id, id));
+    await db.delete(schema.recipes).where(and(
+      eq(schema.recipes.id, id),
+      eq(schema.recipes.companyId, this.companyId)
+    ));
   }
 
   async createProductFromRecipe(recipeId: number): Promise<Product> {
@@ -561,12 +664,14 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(schema.recipes)
       .set({ productId: newProduct.id, updatedAt: new Date() })
-      .where(eq(schema.recipes.id, recipeId));
+      .where(and(
+        eq(schema.recipes.id, recipeId),
+        eq(schema.recipes.companyId, this.companyId)
+      ));
 
     return newProduct;
   }
 
-  // ============ PRODUCT COMPONENTS ============
   async getProductWithComponents(id: number): Promise<ProductWithComponents | undefined> {
     const product = await this.getProduct(id);
     if (!product) return undefined;
@@ -585,12 +690,18 @@ export class DatabaseStorage implements IStorage {
     const recipeComponents = await db
       .select()
       .from(schema.productRecipeComponents)
-      .where(eq(schema.productRecipeComponents.productId, product.id));
+      .where(and(
+        eq(schema.productRecipeComponents.productId, product.id),
+        eq(schema.productRecipeComponents.companyId, this.companyId)
+      ));
 
     const packagingComponents = await db
       .select()
       .from(schema.productPackagingComponents)
-      .where(eq(schema.productPackagingComponents.productId, product.id));
+      .where(and(
+        eq(schema.productPackagingComponents.productId, product.id),
+        eq(schema.productPackagingComponents.companyId, this.companyId)
+      ));
 
     const enrichedRecipeComponents = await Promise.all(
       recipeComponents.map(async (comp) => {
@@ -621,13 +732,39 @@ export class DatabaseStorage implements IStorage {
     recipeComponents: Omit<InsertProductRecipeComponent, 'productId'>[],
     packagingComponents: Omit<InsertProductPackagingComponent, 'productId'>[]
   ): Promise<void> {
-    await db.delete(schema.productRecipeComponents).where(eq(schema.productRecipeComponents.productId, productId));
-    await db.delete(schema.productPackagingComponents).where(eq(schema.productPackagingComponents.productId, productId));
+    const product = await this.getProduct(productId);
+    if (!product) {
+      throw new Error("Product not found or access denied");
+    }
+    
+    for (const comp of recipeComponents) {
+      const recipe = await this.getRecipe(comp.recipeId);
+      if (!recipe) {
+        throw new Error(`Recipe ${comp.recipeId} not found or access denied`);
+      }
+    }
+    
+    for (const comp of packagingComponents) {
+      const ingredient = await this.getIngredient(comp.ingredientId);
+      if (!ingredient) {
+        throw new Error(`Ingredient ${comp.ingredientId} not found or access denied`);
+      }
+    }
+    
+    await db.delete(schema.productRecipeComponents).where(and(
+      eq(schema.productRecipeComponents.productId, productId),
+      eq(schema.productRecipeComponents.companyId, this.companyId)
+    ));
+    await db.delete(schema.productPackagingComponents).where(and(
+      eq(schema.productPackagingComponents.productId, productId),
+      eq(schema.productPackagingComponents.companyId, this.companyId)
+    ));
 
     for (const comp of recipeComponents) {
       await db.insert(schema.productRecipeComponents).values({
         ...comp,
         productId,
+        companyId: this.companyId,
       });
     }
 
@@ -635,6 +772,7 @@ export class DatabaseStorage implements IStorage {
       await db.insert(schema.productPackagingComponents).values({
         ...comp,
         productId,
+        companyId: this.companyId,
       });
     }
 
@@ -642,7 +780,10 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(schema.products)
       .set({ cost: calculatedCost.toFixed(2), updatedAt: new Date() })
-      .where(eq(schema.products.id, productId));
+      .where(and(
+        eq(schema.products.id, productId),
+        eq(schema.products.companyId, this.companyId)
+      ));
   }
 
   async calculateProductCost(productId: number): Promise<number> {
@@ -651,7 +792,10 @@ export class DatabaseStorage implements IStorage {
     const recipeComponents = await db
       .select()
       .from(schema.productRecipeComponents)
-      .where(eq(schema.productRecipeComponents.productId, productId));
+      .where(and(
+        eq(schema.productRecipeComponents.productId, productId),
+        eq(schema.productRecipeComponents.companyId, this.companyId)
+      ));
 
     for (const comp of recipeComponents) {
       const recipe = await this.getRecipe(comp.recipeId);
@@ -664,7 +808,10 @@ export class DatabaseStorage implements IStorage {
     const packagingComponents = await db
       .select()
       .from(schema.productPackagingComponents)
-      .where(eq(schema.productPackagingComponents.productId, productId));
+      .where(and(
+        eq(schema.productPackagingComponents.productId, productId),
+        eq(schema.productPackagingComponents.companyId, this.companyId)
+      ));
 
     for (const comp of packagingComponents) {
       const ingredient = await this.getIngredient(comp.ingredientId);
@@ -679,4 +826,63 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+class RootStorage implements IRootStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(schema.users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: schema.users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getCompany(id: number): Promise<Company | undefined> {
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.id, id));
+    return company;
+  }
+
+  async getCompanyBySlug(slug: string): Promise<Company | undefined> {
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.slug, slug));
+    return company;
+  }
+
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const [newCompany] = await db
+      .insert(schema.companies)
+      .values(company)
+      .returning();
+    return newCompany;
+  }
+
+  async assignUserToCompany(userId: string, companyId: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(schema.users)
+      .set({ companyId, updatedAt: new Date() })
+      .where(eq(schema.users.id, userId))
+      .returning();
+    return user;
+  }
+
+  forTenant(companyId: number): ITenantStorage {
+    return new TenantStorage(companyId);
+  }
+}
+
+export const storage = new RootStorage();

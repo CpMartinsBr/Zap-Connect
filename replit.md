@@ -161,3 +161,110 @@ Preferred communication style: Simple, everyday language.
 - WebSocket support (HTTP server already configured)
 - Session management infrastructure present (connect-pg-simple referenced)
 - File upload capabilities (Multer dependency suggests multipart form data handling)
+
+## Multi-Tenant Architecture
+
+### Overview
+The application has been refactored to support multi-tenancy (SaaS model), where each company (tenant) has completely isolated data. All business entities now include a `company_id` field, and queries are automatically filtered by the authenticated user's company.
+
+### Key Components
+
+**Company Entity**
+- `companies` table with id, name, slug, plan, created_at
+- Each user belongs to exactly one company via `users.company_id`
+- Plan types: free, starter, professional, enterprise
+
+**Data Isolation**
+All business tables include `company_id`:
+- contacts, messages, products, orders, order_items
+- ingredients, recipes, recipe_items
+- product_recipe_components, product_packaging_components
+
+**Storage Layer Pattern**
+The storage uses a factory pattern for tenant isolation:
+- `IRootStorage`: Global operations (user management, company management)
+- `ITenantStorage`: Company-scoped operations (all business CRUD)
+- `storage.forTenant(companyId)`: Returns a tenant-scoped storage instance
+
+**Middleware Chain**
+Protected routes use three middlewares in sequence:
+1. `isAuthenticated`: Validates user session and token
+2. `withTenantContext`: Loads user from DB, extracts companyId into `req.tenant`
+3. `tenantMiddleware`: Creates `req.tenantStorage = storage.forTenant(companyId)`
+
+### Security Guarantees
+- All business queries include automatic `company_id` filtering
+- Parent entity ownership is verified before cascading operations
+- Cross-company access attempts return 404 (not 403) to prevent enumeration
+
+## Migrating to External Backend (Xano)
+
+### Current Architecture Advantages
+The storage abstraction layer (`ITenantStorage` interface) makes backend replacement straightforward:
+
+1. **Interface Stability**: All business operations are defined in `ITenantStorage`
+2. **No Direct DB Access**: Route handlers never access the database directly
+3. **Validation Layer**: Zod schemas validate all inputs before storage calls
+
+### Migration Steps to Xano
+
+1. **Create XanoStorage Class**
+```typescript
+class XanoTenantStorage implements ITenantStorage {
+  constructor(
+    public readonly companyId: number,
+    private readonly apiKey: string,
+    private readonly baseUrl: string
+  ) {}
+
+  async getAllContacts(): Promise<ContactWithLastMessage[]> {
+    const response = await fetch(`${this.baseUrl}/contacts?company_id=${this.companyId}`, {
+      headers: { 'Authorization': `Bearer ${this.apiKey}` }
+    });
+    return response.json();
+  }
+  // ... implement all ITenantStorage methods
+}
+```
+
+2. **Create XanoRootStorage**
+```typescript
+class XanoRootStorage implements IRootStorage {
+  forTenant(companyId: number): ITenantStorage {
+    return new XanoTenantStorage(companyId, process.env.XANO_API_KEY!, process.env.XANO_BASE_URL!);
+  }
+  // ... implement user/company methods
+}
+```
+
+3. **Swap Storage Export**
+```typescript
+// In storage.ts
+export const storage = process.env.USE_XANO === 'true' 
+  ? new XanoRootStorage() 
+  : new RootStorage();
+```
+
+4. **Xano Configuration**
+- Replicate all tables in Xano with same structure
+- Add REST endpoints for each CRUD operation
+- Configure authentication and company_id filtering in Xano
+- Migrate data from PostgreSQL to Xano
+
+### What Stays the Same
+- All frontend code
+- All route definitions
+- All Zod validation schemas
+- All types and interfaces
+
+### What Changes
+- Storage implementation (Drizzle → HTTP calls)
+- Database hosting (PostgreSQL → Xano)
+- Environment variables for Xano configuration
+
+## Migration Script
+
+Run `npx tsx server/migrate-to-multitenant.ts` to:
+- Create a default company if none exists
+- Assign all users without a company to the default company
+- Update all existing records with null company_id to the default company
