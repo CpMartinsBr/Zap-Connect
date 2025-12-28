@@ -1,0 +1,66 @@
+You are working on an existing full-stack application generated and maintained inside Replit.
+
+CURRENT CONTEXT:
+- Frontend and backend are in the same Replit project
+- Backend is currently local (Node/Express or similar)
+- No external backend service (Xano/Supabase) is used yet
+- This app is intended to become a commercial SaaS
+
+GOAL:
+Refactor the existing app into a proper multi-tenant SaaS architecture
+AND prepare the backend so it can be migrated later to an external service
+(e.g. Xano) with minimal effort.
+
+CRITICAL RULES:
+- DO NOT rewrite the application
+- DO NOT change the UI or UX unless strictly required
+- DO NOT introduce new frameworks
+- KEEP frontend and backend working together for now
+- Make changes incrementally and safely
+- Preserve existing data and functionality
+
+TASKS:
+
+1) MULTI-TENANT CORE
+- Create a new entity called "Company" (tenant)
+  Fields:
+    - id
+    - name
+    - slug
+    - plan
+    - created_at
+
+- Introduce company-based data isolation:
+  - Add company_id to ALL business entities:
+    clients, products, orders, recipes, inventory, etc.
+  - Ensure every record belongs to exactly one company
+
+2) BACKEND ISOLATION LAYER (VERY IMPORTANT)
+- Centralize all database access behind a service or repository layer
+- Avoid direct database access inside route handlers
+- Structure backend logic so it can be easily replaced by an external API later
+
+3) AUTH CONTEXT PREPARATION
+- Assume that an authenticated user will always have a company_id
+- Add middleware that:
+  - extracts user context
+  - injects company_id into the request
+- Enforce company_id filtering in ALL backend queries
+- Prevent any cross-company data access
+
+4) MIGRATION SAFETY
+- Do NOT delete existing tables or data
+- If needed, create migrations or seed logic
+- Backfill company_id for existing records using a default company
+
+5) FRONTEND ADAPTATION (MINIMAL)
+- Ensure frontend requests include company context implicitly
+- Do NOT redesign screens
+- Keep all existing pages functional
+
+OUTPUT REQUIREMENTS:
+- Updated backend code with multi-tenant support
+- Updated data schema
+- Clear separation between routes and data access logic
+- Short explanation of architectural changes
+- Notes explaining how this backend can later be replaced by Xano
