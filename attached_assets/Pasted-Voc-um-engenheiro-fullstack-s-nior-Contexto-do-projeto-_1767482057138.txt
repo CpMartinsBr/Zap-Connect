@@ -1,0 +1,75 @@
+Você é um engenheiro fullstack sênior.
+
+Contexto do projeto:
+- Aplicação SaaS estilo CRM de WhatsApp
+- Backend e frontend rodam juntos no Replit (Node.js + Express)
+- Banco de dados já existe e é usado pelo backend atual
+- Ainda NÃO existe integração com WhatsApp
+- Não usar Xano agora, tudo deve continuar funcionando no Replit
+- Código existente NÃO deve ser quebrado
+
+Objetivo:
+Adicionar integração com WhatsApp usando Twilio, da forma mais simples possível, mantendo o código organizado e preparado para migração futura.
+
+Tarefas obrigatórias:
+
+1) Criar integração com Twilio
+- Adicionar dependência oficial do Twilio
+- Ler credenciais via variáveis de ambiente:
+  - TWILIO_ACCOUNT_SID
+  - TWILIO_AUTH_TOKEN
+  - TWILIO_WHATSAPP_NUMBER
+
+2) Criar endpoint webhook para receber mensagens
+- Endpoint: POST /webhook/whatsapp
+- Deve:
+  - Receber mensagens enviadas pelo WhatsApp via Twilio
+  - Extrair:
+    - telefone do remetente
+    - conteúdo da mensagem
+  - Criar ou reutilizar contato existente
+  - Criar ou reutilizar conversa existente
+  - Salvar a mensagem no banco (role = "user")
+  - Retornar HTTP 200 rapidamente
+
+3) Criar endpoint para enviar mensagens
+- Endpoint: POST /whatsapp/send
+- Input:
+  - phone
+  - message
+- Deve:
+  - Enviar mensagem via Twilio
+  - Registrar a mensagem no banco (role = "assistant")
+  - Retornar status de sucesso ou erro
+
+4) Organização do código
+- Criar um módulo específico para integração Twilio (ex: services/twilio.ts)
+- Não misturar lógica do Twilio com regras de negócio
+- Manter padrão já usado no projeto
+
+5) Segurança e simplicidade
+- Não implementar autenticação avançada agora
+- Validar dados mínimos
+- Não implementar chatbot ou IA ainda
+
+6) Frontend (mínimo necessário)
+- Garantir que mensagens recebidas apareçam na interface existente
+- Garantir que mensagens enviadas apareçam na conversa
+- Não refatorar o frontend inteiro
+
+Restrições importantes:
+- Não remover funcionalidades existentes
+- Não alterar estrutura do banco sem extrema necessidade
+- Priorizar simplicidade e clareza
+- Código deve ser fácil de migrar futuramente para outro backend
+
+Resultado esperado:
+- App continua funcionando como antes
+- Mensagens de WhatsApp entram no sistema
+- É possível responder pelo sistema
+- Código organizado e compreensível
+
+Antes de implementar:
+- Analise o código existente
+- Explique rapidamente (em poucas linhas) a estratégia escolhida
+- Só depois implemente as mudanças
