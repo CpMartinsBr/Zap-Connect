@@ -11,8 +11,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useContacts, useUpdateContact, useCreateContact, useOrdersByContact, useProducts, useCreateOrder } from "@/lib/hooks";
-import type { ContactWithLastMessage, UpdateContact, InsertContact } from "@shared/schema";
+import { useContacts, useUpdateContact, useCreateContact, useOrdersByContact, useProducts, useCreateOrder, useMessages, useSendMessage } from "@/lib/hooks";
+import type { ContactWithLastMessage, UpdateContact, InsertContact, Message } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const paymentMethods = [
@@ -65,6 +67,9 @@ function ClientDetails({
   const { data: orders = [] } = useOrdersByContact(contact.id);
   const { data: products = [] } = useProducts();
   const createOrder = useCreateOrder();
+  const { data: messages = [] } = useMessages(contact.id);
+  const sendMessage = useSendMessage();
+  const [messageText, setMessageText] = useState("");
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
   const [orderNotes, setOrderNotes] = useState("");
@@ -375,6 +380,69 @@ function ClientDetails({
                   {contact.notes || <span className="text-gray-400 italic">Sem notas.</span>}
                 </div>
               )}
+            </div>
+
+            {/* Mensagens */}
+            <div className="bg-gray-50 rounded-lg p-5 space-y-4 lg:col-span-2">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> Mensagens
+              </h3>
+              
+              <div className="bg-white rounded-lg border border-gray-200 max-h-[300px] overflow-y-auto">
+                {messages.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>Nenhuma mensagem</p>
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-3">
+                    {messages.map((msg) => {
+                      const isMe = msg.senderId === 0;
+                      return (
+                        <div key={msg.id} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
+                          <div className={cn(
+                            "max-w-[70%] px-3 py-2 rounded-lg text-sm",
+                            isMe ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
+                          )}>
+                            <p>{msg.content}</p>
+                            <p className={cn("text-[10px] mt-1", isMe ? "text-primary-foreground/70" : "text-gray-500")}>
+                              {new Date(msg.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-2">
+                <Input
+                  data-testid="input-message"
+                  placeholder="Digite uma mensagem..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && messageText.trim()) {
+                      sendMessage.mutate({ contactId: contact.id, content: messageText, senderId: 0, status: 'sent' });
+                      setMessageText('');
+                    }
+                  }}
+                />
+                <Button
+                  data-testid="btn-send-message"
+                  onClick={() => {
+                    if (messageText.trim()) {
+                      sendMessage.mutate({ contactId: contact.id, content: messageText, senderId: 0, status: 'sent' });
+                      setMessageText('');
+                    }
+                  }}
+                  disabled={!messageText.trim() || sendMessage.isPending}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Pedidos */}
