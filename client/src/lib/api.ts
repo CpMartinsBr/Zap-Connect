@@ -86,6 +86,13 @@ export async function sendMessage(message: InsertMessage): Promise<Message> {
   });
 }
 
+export async function sendWhatsAppMessage(phone: string, message: string, contactId?: number): Promise<{ success: boolean; error?: string }> {
+  return fetchAPI("/whatsapp/send", {
+    method: "POST",
+    body: JSON.stringify({ phone, message, contactId }),
+  });
+}
+
 // ============ PRODUCTS ============
 export async function getProducts(): Promise<Product[]> {
   return fetchAPI("/api/products");

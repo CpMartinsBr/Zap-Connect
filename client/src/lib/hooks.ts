@@ -64,6 +64,20 @@ export function useSendMessage() {
   });
 }
 
+export function useSendWhatsAppMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ phone, message, contactId }: { phone: string; message: string; contactId?: number }) => 
+      api.sendWhatsAppMessage(phone, message, contactId),
+    onSuccess: (_, variables) => {
+      if (variables.contactId) {
+        queryClient.invalidateQueries({ queryKey: ["messages", variables.contactId] });
+        queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      }
+    },
+  });
+}
+
 // ============ PRODUCTS ============
 export function useProducts() {
   return useQuery({

@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useContacts, useUpdateContact, useCreateContact, useOrdersByContact, useProducts, useCreateOrder, useMessages, useSendMessage } from "@/lib/hooks";
+import { useContacts, useUpdateContact, useCreateContact, useOrdersByContact, useProducts, useCreateOrder, useMessages, useSendWhatsAppMessage } from "@/lib/hooks";
 import type { ContactWithLastMessage, UpdateContact, InsertContact, Message } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageCircle, Send } from "lucide-react";
@@ -68,7 +68,7 @@ function ClientDetails({
   const { data: products = [] } = useProducts();
   const createOrder = useCreateOrder();
   const { data: messages = [] } = useMessages(contact.id);
-  const sendMessage = useSendMessage();
+  const sendWhatsApp = useSendWhatsAppMessage();
   const [messageText, setMessageText] = useState("");
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);
@@ -423,8 +423,8 @@ function ClientDetails({
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && messageText.trim()) {
-                      sendMessage.mutate({ contactId: contact.id, content: messageText, senderId: 0, status: 'sent' });
+                    if (e.key === 'Enter' && messageText.trim() && contact.phone) {
+                      sendWhatsApp.mutate({ phone: contact.phone, message: messageText, contactId: contact.id });
                       setMessageText('');
                     }
                   }}
@@ -432,12 +432,12 @@ function ClientDetails({
                 <Button
                   data-testid="btn-send-message"
                   onClick={() => {
-                    if (messageText.trim()) {
-                      sendMessage.mutate({ contactId: contact.id, content: messageText, senderId: 0, status: 'sent' });
+                    if (messageText.trim() && contact.phone) {
+                      sendWhatsApp.mutate({ phone: contact.phone, message: messageText, contactId: contact.id });
                       setMessageText('');
                     }
                   }}
-                  disabled={!messageText.trim() || sendMessage.isPending}
+                  disabled={!messageText.trim() || !contact.phone || sendWhatsApp.isPending}
                   className="bg-primary hover:bg-primary/90"
                 >
                   <Send className="w-4 h-4" />
