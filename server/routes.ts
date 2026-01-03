@@ -21,6 +21,7 @@ import {
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
+import * as twilioService from "./services/twilio";
 
 declare global {
   namespace Express {
@@ -655,6 +656,97 @@ export async function registerRoutes(
       }
       res.status(500).json({ error: error.message });
     }
+  });
+
+  app.post("/webhook/whatsapp", async (req, res) => {
+    try {
+      const from = req.body.From;
+      const body = req.body.Body;
+      
+      if (!from || !body) {
+        return res.status(200).send("OK");
+      }
+      
+      const phone = twilioService.extractPhoneFromWhatsApp(from);
+      
+      const defaultCompanyId = parseInt(process.env.DEFAULT_COMPANY_ID || "1");
+      
+      const company = await storage.getCompany(defaultCompanyId);
+      if (!company) {
+        console.error(`Webhook error: Company ${defaultCompanyId} not found. Set DEFAULT_COMPANY_ID env var.`);
+        return res.status(500).send("Configuration error");
+      }
+      
+      const tenantStorage = storage.forTenant(defaultCompanyId);
+      
+      let contact = await tenantStorage.getContactByPhone(phone);
+      
+      if (!contact) {
+        contact = await tenantStorage.createContact({
+          name: `WhatsApp ${phone}`,
+          phone: phone,
+          addresses: [],
+        });
+        console.log(`New WhatsApp contact created: ${phone}`);
+      }
+      
+      await tenantStorage.createMessage({
+        contactId: contact.id,
+        content: body,
+        senderId: 1,
+        status: "received",
+      });
+      
+      console.log(`WhatsApp message received from ${phone}`);
+      res.status(200).send("OK");
+    } catch (error: any) {
+      console.error("Webhook error:", error.message);
+      res.status(200).send("OK");
+    }
+  });
+
+  app.post("/whatsapp/send", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
+    try {
+      if (!req.tenantStorage) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+      
+      const { phone, message, contactId } = z.object({
+        phone: z.string().min(1),
+        message: z.string().min(1),
+        contactId: z.number().optional(),
+      }).parse(req.body);
+      
+      if (!twilioService.isConfigured()) {
+        return res.status(503).json({ error: "WhatsApp integration not configured" });
+      }
+      
+      const result = await twilioService.sendWhatsAppMessage(phone, message);
+      
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+      
+      if (contactId) {
+        await req.tenantStorage.createMessage({
+          contactId,
+          content: message,
+          senderId: 0,
+          status: "sent",
+        });
+      }
+      
+      res.json({ success: true, sid: result.sid });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/whatsapp/status", (req, res) => {
+    res.json({ configured: twilioService.isConfigured() });
   });
 
   return httpServer;

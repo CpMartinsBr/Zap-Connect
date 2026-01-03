@@ -63,6 +63,7 @@ export interface ITenantStorage {
 
   getAllContacts(): Promise<ContactWithLastMessage[]>;
   getContact(id: number): Promise<Contact | undefined>;
+  getContactByPhone(phone: string): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, updates: UpdateContact): Promise<Contact | undefined>;
   deleteContact(id: number): Promise<void>;
@@ -162,6 +163,19 @@ class TenantStorage implements ITenantStorage {
       .from(schema.contacts)
       .where(and(
         eq(schema.contacts.id, id),
+        eq(schema.contacts.companyId, this.companyId)
+      ))
+      .limit(1);
+    return results[0];
+  }
+
+  async getContactByPhone(phone: string): Promise<Contact | undefined> {
+    const normalizedPhone = phone.replace(/\D/g, "");
+    const results = await db
+      .select()
+      .from(schema.contacts)
+      .where(and(
+        sql`REGEXP_REPLACE(${schema.contacts.phone}, '[^0-9]', '', 'g') = ${normalizedPhone}`,
         eq(schema.contacts.companyId, this.companyId)
       ))
       .limit(1);

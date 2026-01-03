@@ -268,3 +268,45 @@ Run `npx tsx server/migrate-to-multitenant.ts` to:
 - Create a default company if none exists
 - Assign all users without a company to the default company
 - Update all existing records with null company_id to the default company
+
+## WhatsApp Integration (Twilio)
+
+### Overview
+The application integrates with WhatsApp via Twilio API for sending and receiving messages. Messages are stored in the existing `messages` table alongside CRM conversations.
+
+### Configuration
+Set the following environment variables:
+- `TWILIO_ACCOUNT_SID`: Your Twilio Account SID
+- `TWILIO_AUTH_TOKEN`: Your Twilio Auth Token
+- `TWILIO_WHATSAPP_NUMBER`: Your Twilio WhatsApp number (format: +5511999999999)
+- `DEFAULT_COMPANY_ID`: Company ID to receive incoming WhatsApp messages (default: 1)
+
+### Endpoints
+
+**Receive Messages (Webhook)**
+- `POST /webhook/whatsapp` - Twilio webhook endpoint
+- Receives incoming WhatsApp messages
+- Automatically creates contacts if phone not found
+- Stores messages with `senderId=1` (WhatsApp user)
+
+**Send Messages**
+- `POST /whatsapp/send` - Send WhatsApp message
+- Requires authentication
+- Body: `{ phone: string, message: string, contactId?: number }`
+- Stores messages with `senderId=0` (system/assistant)
+
+**Status Check**
+- `GET /api/whatsapp/status` - Check if Twilio is configured
+
+### Code Organization
+- `server/services/twilio.ts` - Twilio service module (isolated from business logic)
+- Message handling uses existing storage layer
+
+### Message Sender Conventions
+- `senderId = 0`: Messages sent by the system/operator
+- `senderId = 1`: Messages received from WhatsApp users
+- `senderId != 0`: Incoming messages (for unread count calculation)
+
+### Limitations
+- Current implementation routes all incoming WhatsApp messages to a single company (DEFAULT_COMPANY_ID)
+- For multi-tenant WhatsApp routing, additional configuration would be needed
