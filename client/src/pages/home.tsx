@@ -746,12 +746,19 @@ export default function Home() {
   };
 
   const handleCreateContact = () => {
-    if (!formData.name || !formData.phone) return;
+    if (!formData.name || !formData.phone) {
+      console.error("Nome e telefone são obrigatórios");
+      return;
+    }
 
     createContact.mutate(formData as InsertContact, {
       onSuccess: (newContact) => {
         setIsAddDialogOpen(false);
         setSelectedContactId(newContact.id);
+      },
+      onError: (error) => {
+        console.error("Erro ao criar contato:", error);
+        alert("Erro ao criar contato: " + (error as Error).message);
       },
     });
   };
