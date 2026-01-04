@@ -65,13 +65,28 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
-  await storage.upsertUser({
+  const user = await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+  
+  if (!user.companyId) {
+    const firstName = claims["first_name"] || "Minha";
+    const companyName = `${firstName}'s Confeitaria`;
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    const company = await storage.createCompany({
+      name: companyName,
+      slug: slug + "-" + Date.now(),
+      plan: "free",
+    });
+    
+    await storage.assignUserToCompany(user.id, company.id);
+    console.log(`Created company "${companyName}" for user ${user.email}`);
+  }
 }
 
 export async function setupAuth(app: Express) {
