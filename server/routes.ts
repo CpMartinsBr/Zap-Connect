@@ -1,7 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, type ITenantStorage } from "./storage";
-import { setupAuth, isAuthenticated, withTenantContext, requireCompany, type TenantContext } from "./replitAuth";
+import { setupAuth, isAuthenticated, withTenantContext, requireCompany, requireRole, type TenantContext } from "./replitAuth";
+import crypto from "crypto";
 import { 
   insertContactSchema, 
   updateContactSchema, 
@@ -45,7 +46,7 @@ export async function registerRoutes(
   
   await setupAuth(app);
 
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, withTenantContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -53,19 +54,211 @@ export async function registerRoutes(
       if (user) {
         const allowedEmails = (process.env.ALLOWED_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
         const isAllowed = allowedEmails.length === 0 || allowedEmails.includes(user.email?.toLowerCase() || "");
+        const isSuperAdmin = storage.isSuperAdmin(user.email || "");
+        
+        const memberships = await storage.getUserMemberships(userId);
+        const activeMembership = memberships.find(m => m.companyId === req.tenant?.companyId) || memberships[0];
         
         let company = null;
-        if (user.companyId) {
+        if (activeMembership?.companyId) {
+          company = await storage.getCompany(activeMembership.companyId);
+        } else if (user.companyId) {
           company = await storage.getCompany(user.companyId);
         }
         
-        res.json({ ...user, isAllowed, company });
+        res.json({ 
+          ...user, 
+          isAllowed, 
+          isSuperAdmin,
+          company,
+          memberships,
+          activeRole: activeMembership?.role || null,
+        });
       } else {
         res.json(user);
       }
     } catch (error: any) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.get('/api/memberships', isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const memberships = await storage.getUserMemberships(req.tenant.userId);
+      res.json(memberships);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/auth/switch-company', isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const { companyId } = z.object({ companyId: z.number() }).parse(req.body);
+      
+      const membership = await storage.getMembership(req.tenant.userId, companyId);
+      if (!membership && !req.tenant.isSuperAdmin) {
+        return res.status(403).json({ error: "Not a member of this company" });
+      }
+      
+      await storage.assignUserToCompany(req.tenant.userId, companyId);
+      
+      res.json({ success: true, companyId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/company/members', isAuthenticated, withTenantContext, tenantMiddleware, requireRole("admin", "manager"), async (req, res) => {
+    try {
+      if (!req.tenant?.companyId) {
+        return res.status(403).json({ error: "No company context" });
+      }
+      const members = await storage.getCompanyMembers(req.tenant.companyId);
+      res.json(members);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/company/invitations', isAuthenticated, withTenantContext, tenantMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      if (!req.tenant?.companyId) {
+        return res.status(403).json({ error: "No company context" });
+      }
+      
+      const { email, role } = z.object({
+        email: z.string().email(),
+        role: z.enum(["admin", "manager", "member", "viewer"]).default("member"),
+      }).parse(req.body);
+      
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      const invitation = await storage.createInvitation({
+        companyId: req.tenant.companyId,
+        email: email.toLowerCase(),
+        role,
+        invitedBy: req.tenant.userId,
+        expiresAt,
+      }, token);
+      
+      res.status(201).json(invitation);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/company/invitations', isAuthenticated, withTenantContext, tenantMiddleware, requireRole("admin", "manager"), async (req, res) => {
+    try {
+      if (!req.tenant?.companyId) {
+        return res.status(403).json({ error: "No company context" });
+      }
+      const invitations = await storage.getCompanyInvitations(req.tenant.companyId);
+      res.json(invitations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/invitations/accept', isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const { token } = z.object({ token: z.string() }).parse(req.body);
+      
+      const invitation = await storage.getInvitationByToken(token);
+      if (!invitation) {
+        return res.status(404).json({ error: "Invitation not found" });
+      }
+      
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ error: "Invitation already used" });
+      }
+      
+      if (new Date() > invitation.expiresAt) {
+        return res.status(400).json({ error: "Invitation expired" });
+      }
+      
+      const user = await storage.getUser(req.tenant.userId);
+      if (user?.email?.toLowerCase() !== invitation.email.toLowerCase()) {
+        return res.status(403).json({ error: "This invitation is for a different email" });
+      }
+      
+      const existingMembership = await storage.getMembership(req.tenant.userId, invitation.companyId);
+      if (existingMembership) {
+        await storage.updateInvitationStatus(invitation.id, "accepted");
+        return res.json({ success: true, message: "Already a member" });
+      }
+      
+      await storage.createMembership({
+        userId: req.tenant.userId,
+        companyId: invitation.companyId,
+        role: invitation.role,
+        isDefault: 0,
+      });
+      
+      await storage.updateInvitationStatus(invitation.id, "accepted");
+      await storage.assignUserToCompany(req.tenant.userId, invitation.companyId);
+      
+      res.json({ success: true, companyId: invitation.companyId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/invitations/pending', isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.tenant.userId);
+      if (!user?.email) {
+        return res.json([]);
+      }
+      const invitations = await storage.getInvitationsByEmail(user.email);
+      res.json(invitations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch('/api/company/members/:id/role', isAuthenticated, withTenantContext, tenantMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      if (!req.tenant?.companyId) {
+        return res.status(403).json({ error: "No company context" });
+      }
+      
+      const { role } = z.object({ role: z.enum(["admin", "manager", "member", "viewer"]) }).parse(req.body);
+      const id = parseInt(req.params.id);
+      
+      const membership = await storage.getMembershipById(id);
+      if (!membership || membership.companyId !== req.tenant.companyId) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      
+      const updated = await storage.updateMembershipRole(id, role);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/company/members/:id', isAuthenticated, withTenantContext, tenantMiddleware, requireRole("admin"), async (req, res) => {
+    try {
+      if (!req.tenant?.companyId) {
+        return res.status(403).json({ error: "No company context" });
+      }
+      
+      const id = parseInt(req.params.id);
+      
+      const membership = await storage.getMembershipById(id);
+      if (!membership || membership.companyId !== req.tenant.companyId) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      
+      await storage.deleteMembership(id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -7,6 +7,7 @@ const navItems = [
   { path: "/ingredientes", icon: Wheat, label: "Estoque" },
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
   { path: "/receitas", icon: BookOpen, label: "Receitas" },
+  { path: "/equipe", icon: Users, label: "Equipe" },
 ];
 
 interface LayoutProps {

@@ -54,6 +54,57 @@ export type UserWithCompany = User & {
   company?: Company | null;
 };
 
+// ============ COMPANY MEMBERSHIPS (Multi-tenant roles) ============
+export type MemberRole = "admin" | "manager" | "member" | "viewer";
+
+export const companyMemberships = pgTable("company_memberships", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"),
+  isDefault: integer("is_default").notNull().default(0),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const insertMembershipSchema = createInsertSchema(companyMemberships).omit({
+  id: true,
+  joinedAt: true,
+});
+
+export type CompanyMembership = typeof companyMemberships.$inferSelect;
+export type InsertMembership = z.infer<typeof insertMembershipSchema>;
+
+export type MembershipWithCompany = CompanyMembership & {
+  company: Company;
+};
+
+export type MembershipWithUser = CompanyMembership & {
+  user: User;
+};
+
+// ============ COMPANY INVITATIONS ============
+export const companyInvitations = pgTable("company_invitations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("member"),
+  token: text("token").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  invitedBy: varchar("invited_by").references(() => users.id),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertInvitationSchema = createInsertSchema(companyInvitations).omit({
+  id: true,
+  createdAt: true,
+  token: true,
+  status: true,
+});
+
+export type CompanyInvitation = typeof companyInvitations.$inferSelect;
+export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
+
 // ============ CONTACTS ============
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),

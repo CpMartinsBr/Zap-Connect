@@ -13,6 +13,7 @@ import Inventory from "@/pages/inventory";
 import Orders from "@/pages/orders";
 import Ingredients from "@/pages/ingredients";
 import Recipes from "@/pages/recipes";
+import Team from "@/pages/team";
 
 function Router() {
   const { isAuthenticated, isLoading, isAllowed } = useAuth();
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/pedidos" component={Orders} />
         <Route path="/ingredientes" component={Ingredients} />
         <Route path="/receitas" component={Recipes} />
+        <Route path="/equipe" component={Team} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

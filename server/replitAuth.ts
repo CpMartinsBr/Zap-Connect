@@ -12,6 +12,8 @@ export interface TenantContext {
   userId: string;
   companyId: number | null;
   email: string | null;
+  role: string | null;
+  isSuperAdmin: boolean;
 }
 
 declare global {
@@ -73,7 +75,9 @@ async function upsertUser(claims: any) {
     profileImageUrl: claims["profile_image_url"],
   });
   
-  if (!user.companyId) {
+  const memberships = await storage.getUserMemberships(user.id);
+  
+  if (memberships.length === 0) {
     const firstName = claims["first_name"] || "Minha";
     const companyName = `${firstName}'s Confeitaria`;
     const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -85,7 +89,15 @@ async function upsertUser(claims: any) {
     });
     
     await storage.assignUserToCompany(user.id, company.id);
-    console.log(`Created company "${companyName}" for user ${user.email}`);
+    
+    await storage.createMembership({
+      userId: user.id,
+      companyId: company.id,
+      role: "admin",
+      isDefault: 1,
+    });
+    
+    console.log(`Created company "${companyName}" with admin membership for user ${user.email}`);
   }
 }
 
@@ -201,10 +213,17 @@ export const withTenantContext: RequestHandler = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
+    const isSuperAdmin = storage.isSuperAdmin(dbUser.email || "");
+    
+    const memberships = await storage.getUserMemberships(userId);
+    const defaultMembership = memberships.find(m => m.isDefault === 1) || memberships[0];
+    
     req.tenant = {
       userId: dbUser.id,
-      companyId: dbUser.companyId ?? null,
+      companyId: defaultMembership?.companyId ?? dbUser.companyId ?? null,
       email: dbUser.email ?? null,
+      role: defaultMembership?.role ?? null,
+      isSuperAdmin,
     };
 
     return next();
@@ -221,4 +240,24 @@ export const requireCompany: RequestHandler = (req, res, next) => {
     });
   }
   return next();
+};
+
+export const requireRole = (...allowedRoles: string[]): RequestHandler => {
+  return (req, res, next) => {
+    if (req.tenant?.isSuperAdmin) {
+      return next();
+    }
+    
+    if (!req.tenant?.role) {
+      return res.status(403).json({ message: "No role assigned" });
+    }
+    
+    if (!allowedRoles.includes(req.tenant.role)) {
+      return res.status(403).json({ 
+        message: `Access denied. Required role: ${allowedRoles.join(" or ")}` 
+      });
+    }
+    
+    return next();
+  };
 };

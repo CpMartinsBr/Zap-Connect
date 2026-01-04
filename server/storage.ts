@@ -36,6 +36,12 @@ import type {
   ProductWithComponents,
   Company,
   InsertCompany,
+  CompanyMembership,
+  InsertMembership,
+  MembershipWithCompany,
+  MembershipWithUser,
+  CompanyInvitation,
+  InsertInvitation,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -48,12 +54,29 @@ const db = drizzle(pool, { schema });
 
 export interface IRootStorage {
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyBySlug(slug: string): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   assignUserToCompany(userId: string, companyId: number): Promise<User | undefined>;
+  
+  getUserMemberships(userId: string): Promise<MembershipWithCompany[]>;
+  getMembership(userId: string, companyId: number): Promise<CompanyMembership | undefined>;
+  getMembershipById(id: number): Promise<CompanyMembership | undefined>;
+  createMembership(membership: InsertMembership): Promise<CompanyMembership>;
+  updateMembershipRole(id: number, role: string): Promise<CompanyMembership | undefined>;
+  deleteMembership(id: number): Promise<void>;
+  getCompanyMembers(companyId: number): Promise<MembershipWithUser[]>;
+  
+  createInvitation(invitation: InsertInvitation, token: string): Promise<CompanyInvitation>;
+  getInvitationByToken(token: string): Promise<CompanyInvitation | undefined>;
+  getInvitationsByEmail(email: string): Promise<CompanyInvitation[]>;
+  getCompanyInvitations(companyId: number): Promise<CompanyInvitation[]>;
+  updateInvitationStatus(id: number, status: string): Promise<CompanyInvitation | undefined>;
+  
+  isSuperAdmin(email: string): boolean;
   
   forTenant(companyId: number): ITenantStorage;
 }
@@ -892,6 +915,124 @@ class RootStorage implements IRootStorage {
       .where(eq(schema.users.id, userId))
       .returning();
     return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    return user;
+  }
+
+  async getUserMemberships(userId: string): Promise<MembershipWithCompany[]> {
+    const memberships = await db
+      .select()
+      .from(schema.companyMemberships)
+      .innerJoin(schema.companies, eq(schema.companyMemberships.companyId, schema.companies.id))
+      .where(eq(schema.companyMemberships.userId, userId));
+    
+    return memberships.map(m => ({
+      ...m.company_memberships,
+      company: m.companies,
+    }));
+  }
+
+  async getMembership(userId: string, companyId: number): Promise<CompanyMembership | undefined> {
+    const [membership] = await db
+      .select()
+      .from(schema.companyMemberships)
+      .where(and(
+        eq(schema.companyMemberships.userId, userId),
+        eq(schema.companyMemberships.companyId, companyId)
+      ));
+    return membership;
+  }
+
+  async getMembershipById(id: number): Promise<CompanyMembership | undefined> {
+    const [membership] = await db
+      .select()
+      .from(schema.companyMemberships)
+      .where(eq(schema.companyMemberships.id, id));
+    return membership;
+  }
+
+  async createMembership(membership: InsertMembership): Promise<CompanyMembership> {
+    const [newMembership] = await db
+      .insert(schema.companyMemberships)
+      .values(membership)
+      .returning();
+    return newMembership;
+  }
+
+  async updateMembershipRole(id: number, role: string): Promise<CompanyMembership | undefined> {
+    const [membership] = await db
+      .update(schema.companyMemberships)
+      .set({ role })
+      .where(eq(schema.companyMemberships.id, id))
+      .returning();
+    return membership;
+  }
+
+  async deleteMembership(id: number): Promise<void> {
+    await db.delete(schema.companyMemberships).where(eq(schema.companyMemberships.id, id));
+  }
+
+  async getCompanyMembers(companyId: number): Promise<MembershipWithUser[]> {
+    const memberships = await db
+      .select()
+      .from(schema.companyMemberships)
+      .innerJoin(schema.users, eq(schema.companyMemberships.userId, schema.users.id))
+      .where(eq(schema.companyMemberships.companyId, companyId));
+    
+    return memberships.map(m => ({
+      ...m.company_memberships,
+      user: m.users,
+    }));
+  }
+
+  async createInvitation(invitation: InsertInvitation, token: string): Promise<CompanyInvitation> {
+    const [newInvitation] = await db
+      .insert(schema.companyInvitations)
+      .values({ ...invitation, token, status: "pending" })
+      .returning();
+    return newInvitation;
+  }
+
+  async getInvitationByToken(token: string): Promise<CompanyInvitation | undefined> {
+    const [invitation] = await db
+      .select()
+      .from(schema.companyInvitations)
+      .where(eq(schema.companyInvitations.token, token));
+    return invitation;
+  }
+
+  async getInvitationsByEmail(email: string): Promise<CompanyInvitation[]> {
+    return db
+      .select()
+      .from(schema.companyInvitations)
+      .where(and(
+        eq(schema.companyInvitations.email, email.toLowerCase()),
+        eq(schema.companyInvitations.status, "pending")
+      ));
+  }
+
+  async getCompanyInvitations(companyId: number): Promise<CompanyInvitation[]> {
+    return db
+      .select()
+      .from(schema.companyInvitations)
+      .where(eq(schema.companyInvitations.companyId, companyId));
+  }
+
+  async updateInvitationStatus(id: number, status: string): Promise<CompanyInvitation | undefined> {
+    const [invitation] = await db
+      .update(schema.companyInvitations)
+      .set({ status })
+      .where(eq(schema.companyInvitations.id, id))
+      .returning();
+    return invitation;
+  }
+
+  isSuperAdmin(email: string): boolean {
+    const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS || "cpmartins2012@gmail.com").split(",").map(e => e.trim().toLowerCase());
+    return superAdminEmails.includes(email.toLowerCase());
   }
 
   forTenant(companyId: number): ITenantStorage {
