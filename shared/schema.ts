@@ -224,6 +224,7 @@ export const orderItems = pgTable("order_items", {
   companyId: integer("company_id").references(() => companies.id),
   orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
   productId: integer("product_id").notNull().references(() => products.id),
+  packagingId: integer("packaging_id").references(() => ingredients.id),
   quantity: integer("quantity").notNull().default(1),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
   notes: text("notes"),
@@ -237,8 +238,13 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 
 // ============ EXTENDED TYPES ============
+export type OrderItemWithDetails = OrderItem & { 
+  product: Product;
+  packaging?: Ingredient | null;
+};
+
 export type OrderWithItems = Order & {
-  items: (OrderItem & { product: Product })[];
+  items: OrderItemWithDetails[];
   contact: Contact;
 };
 
