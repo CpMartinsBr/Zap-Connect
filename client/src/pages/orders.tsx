@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOrders, useProducts, useContacts, useCreateOrder, useUpdateOrder, useDeleteOrder } from "@/lib/hooks";
+import { useOrders, useProducts, useContacts, useIngredients, useCreateOrder, useUpdateOrder, useDeleteOrder } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +48,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 
 interface OrderItemForm {
   productId: number;
+  packagingId: number | null;
   quantity: number;
   unitPrice: string;
   notes?: string;
@@ -65,9 +66,12 @@ export default function Orders() {
   const { data: orders = [], isLoading } = useOrders();
   const { data: products = [] } = useProducts();
   const { data: contacts = [] } = useContacts();
+  const { data: ingredients = [] } = useIngredients();
   const createOrder = useCreateOrder();
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
+
+  const packagings = ingredients.filter(i => i.kind === "packaging");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -134,18 +138,24 @@ export default function Orders() {
   };
 
   const addOrderItem = () => {
-    setOrderItems([...orderItems, { productId: 0, quantity: 1, unitPrice: "0" }]);
+    setOrderItems([...orderItems, { productId: 0, packagingId: null, quantity: 1, unitPrice: "0" }]);
+  };
+
+  const calculateItemPrice = (productId: number, packagingId: number | null): string => {
+    const product = products.find(p => p.id === productId);
+    const packaging = packagingId ? packagings.find(p => p.id === packagingId) : null;
+    const productPrice = product ? Number(product.price) : 0;
+    const packagingPrice = packaging ? Number(packaging.costPerUnit) : 0;
+    return (productPrice + packagingPrice).toFixed(2);
   };
 
   const updateOrderItem = (index: number, updates: Partial<OrderItemForm>) => {
     const newItems = [...orderItems];
     newItems[index] = { ...newItems[index], ...updates };
     
-    if (updates.productId) {
-      const product = products.find((p) => p.id === updates.productId);
-      if (product) {
-        newItems[index].unitPrice = product.price;
-      }
+    if (updates.productId !== undefined || updates.packagingId !== undefined) {
+      const item = newItems[index];
+      newItems[index].unitPrice = calculateItemPrice(item.productId, item.packagingId);
     }
     
     setOrderItems(newItems);
@@ -170,6 +180,7 @@ export default function Orders() {
 
     const items = orderItems.filter((item) => item.productId > 0).map((item) => ({
       productId: item.productId,
+      packagingId: item.packagingId,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       notes: item.notes,
@@ -420,7 +431,12 @@ export default function Orders() {
                 {selectedOrder.items.map((item, index) => (
                   <div key={index} className="flex justify-between py-2 border-b last:border-0">
                     <div>
-                      <div className="font-medium">{item.product?.name}</div>
+                      <div className="font-medium">
+                        {item.product?.name}
+                        {item.packaging && (
+                          <span className="text-gray-500"> + {item.packaging.name}</span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-500">
                         {item.quantity}x R$ {Number(item.unitPrice).toFixed(2)}
                       </div>
@@ -499,57 +515,86 @@ export default function Orders() {
               ) : (
                 <div className="space-y-2">
                   {orderItems.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-end p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
-                        <Label className="text-xs">Produto</Label>
-                        <Select 
-                          value={item.productId?.toString() || ""} 
-                          onValueChange={(v) => updateOrderItem(index, { productId: parseInt(v) })}
+                    <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                          <Label className="text-xs">Produto</Label>
+                          <Select 
+                            value={item.productId?.toString() || ""} 
+                            onValueChange={(v) => updateOrderItem(index, { productId: parseInt(v) })}
+                          >
+                            <SelectTrigger data-testid={`select-item-product-${index}`} className="mt-1">
+                              <SelectValue placeholder="Selecione o produto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.filter((p) => p.active === 1).map((product) => (
+                                <SelectItem key={product.id} value={product.id.toString()}>
+                                  {product.name} - R$ {Number(product.price).toFixed(2)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs">Embalagem</Label>
+                          <Select 
+                            value={item.packagingId?.toString() || "none"} 
+                            onValueChange={(v) => updateOrderItem(index, { packagingId: v === "none" ? null : parseInt(v) })}
+                          >
+                            <SelectTrigger data-testid={`select-item-packaging-${index}`} className="mt-1">
+                              <SelectValue placeholder="Selecione a embalagem" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sem embalagem</SelectItem>
+                              {packagings.map((pkg) => (
+                                <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                                  {pkg.name} - R$ {Number(pkg.costPerUnit).toFixed(2)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          data-testid={`btn-remove-item-${index}`}
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500"
+                          onClick={() => removeOrderItem(index)}
                         >
-                          <SelectTrigger data-testid={`select-item-product-${index}`} className="mt-1">
-                            <SelectValue placeholder="Produto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.filter((p) => p.active === 1).map((product) => (
-                              <SelectItem key={product.id} value={product.id.toString()}>
-                                {product.name} - R$ {Number(product.price).toFixed(2)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <Trash2 size={16} />
+                        </Button>
                       </div>
-                      <div className="w-20">
-                        <Label className="text-xs">Qtd</Label>
-                        <Input
-                          data-testid={`input-item-quantity-${index}`}
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateOrderItem(index, { quantity: parseInt(e.target.value) || 1 })}
-                          className="mt-1"
-                        />
+                      <div className="flex gap-2 items-end">
+                        <div className="w-20">
+                          <Label className="text-xs">Qtd</Label>
+                          <Input
+                            data-testid={`input-item-quantity-${index}`}
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateOrderItem(index, { quantity: parseInt(e.target.value) || 1 })}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs">Preço Final (editável)</Label>
+                          <Input
+                            data-testid={`input-item-price-${index}`}
+                            type="number"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={(e) => updateOrderItem(index, { unitPrice: e.target.value })}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="text-right min-w-[80px]">
+                          <Label className="text-xs text-gray-500">Subtotal</Label>
+                          <div className="font-medium mt-1">
+                            R$ {(item.quantity * Number(item.unitPrice)).toFixed(2)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-24">
-                        <Label className="text-xs">Preço</Label>
-                        <Input
-                          data-testid={`input-item-price-${index}`}
-                          type="number"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateOrderItem(index, { unitPrice: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <Button
-                        data-testid={`btn-remove-item-${index}`}
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-500"
-                        onClick={() => removeOrderItem(index)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
                     </div>
                   ))}
 
