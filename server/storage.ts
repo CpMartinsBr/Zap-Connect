@@ -392,7 +392,11 @@ class TenantStorage implements ITenantStorage {
     const itemsWithProducts = await Promise.all(
       items.map(async (item) => {
         const product = await this.getProduct(item.productId);
-        return { ...item, product: product! };
+        let packaging = null;
+        if (item.packagingId) {
+          packaging = await this.getIngredient(item.packagingId);
+        }
+        return { ...item, product: product!, packaging };
       })
     );
 
