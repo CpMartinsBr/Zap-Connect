@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User, Cake } from "lucide-react";
+import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User, Cake, Box } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { path: "/", icon: Users, label: "Clientes" },
-  { path: "/ingredientes", icon: Wheat, label: "Estoque" },
+  { path: "/ingredientes", icon: Wheat, label: "Ingredientes" },
+  { path: "/embalagens", icon: Box, label: "Embalagens" },
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
   { path: "/receitas", icon: BookOpen, label: "Receitas" },
   { path: "/equipe", icon: Users, label: "Equipe" },

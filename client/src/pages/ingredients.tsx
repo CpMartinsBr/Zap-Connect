@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Plus, Search, Edit2, Trash2, AlertTriangle, Wheat, Box } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, AlertTriangle, Wheat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Dialog, 
@@ -42,10 +41,6 @@ const UNITS = [
   { value: "dz", label: "Dúzias (dz)" },
 ];
 
-const KINDS = [
-  { value: "ingredient", label: "Ingrediente" },
-  { value: "packaging", label: "Embalagem" },
-];
 
 export default function Ingredients() {
   const { data: ingredients = [], isLoading } = useIngredients();
@@ -68,16 +63,15 @@ export default function Ingredients() {
     supplier: "",
     notes: "",
   });
-  const [kindFilter, setKindFilter] = useState<string>("all");
+  const onlyIngredients = ingredients.filter(ing => ing.kind !== "packaging");
 
-  const filteredIngredients = ingredients.filter(ing => {
+  const filteredIngredients = onlyIngredients.filter(ing => {
     const matchesSearch = ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (ing.supplier?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesKind = kindFilter === "all" || ing.kind === kindFilter;
-    return matchesSearch && matchesKind;
+    return matchesSearch;
   });
 
-  const lowStockIngredients = ingredients.filter(ing => 
+  const lowStockIngredients = onlyIngredients.filter(ing => 
     parseFloat(ing.stock || "0") < parseFloat(ing.minStock || "0")
   );
 
@@ -191,27 +185,15 @@ export default function Ingredients() {
             </Card>
           )}
 
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                data-testid="input-search-ingredient"
-                placeholder="Buscar ingrediente..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={kindFilter} onValueChange={setKindFilter}>
-              <SelectTrigger data-testid="select-kind-filter" className="w-48">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="ingredient">Ingredientes</SelectItem>
-                <SelectItem value="packaging">Embalagens</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              data-testid="input-search-ingredient"
+              placeholder="Buscar ingrediente..."
+              className="pl-10 max-w-md"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
 
           <ScrollArea className="flex-1">
@@ -238,16 +220,7 @@ export default function Ingredients() {
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">{ingredient.name}</h3>
-                              <Badge variant={ingredient.kind === "packaging" ? "secondary" : "outline"} className="text-xs">
-                                {ingredient.kind === "packaging" ? (
-                                  <><Box className="w-3 h-3 mr-1" />Embalagem</>
-                                ) : (
-                                  <>Ingrediente</>
-                                )}
-                              </Badge>
-                            </div>
+                            <h3 className="font-semibold text-gray-900">{ingredient.name}</h3>
                             {ingredient.supplier && (
                               <p className="text-sm text-gray-500">{ingredient.supplier}</p>
                             )}
@@ -316,35 +289,14 @@ export default function Ingredients() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nome *</Label>
-                <Input
-                  data-testid="input-ingredient-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Farinha de Trigo"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tipo *</Label>
-                <Select 
-                  value={formData.kind || "ingredient"} 
-                  onValueChange={(value) => setFormData({ ...formData, kind: value })}
-                >
-                  <SelectTrigger data-testid="select-ingredient-kind">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {KINDS.map((kind) => (
-                      <SelectItem key={kind.value} value={kind.value}>
-                        {kind.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                data-testid="input-ingredient-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Ex: Farinha de Trigo"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

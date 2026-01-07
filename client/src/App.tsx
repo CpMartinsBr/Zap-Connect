@@ -12,6 +12,7 @@ import Home from "@/pages/home";
 import Inventory from "@/pages/inventory";
 import Orders from "@/pages/orders";
 import Ingredients from "@/pages/ingredients";
+import Packaging from "@/pages/packaging";
 import Recipes from "@/pages/recipes";
 import Team from "@/pages/team";
 
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/estoque" component={Inventory} />
         <Route path="/pedidos" component={Orders} />
         <Route path="/ingredientes" component={Ingredients} />
+        <Route path="/embalagens" component={Packaging} />
         <Route path="/receitas" component={Recipes} />
         <Route path="/equipe" component={Team} />
         <Route component={NotFound} />
