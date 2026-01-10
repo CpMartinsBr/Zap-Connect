@@ -23,6 +23,7 @@ import {
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import * as twilioService from "./services/twilio";
+import * as planService from "./services/plans";
 
 declare global {
   namespace Express {
@@ -940,6 +941,87 @@ export async function registerRoutes(
 
   app.get("/api/whatsapp/status", (req, res) => {
     res.json({ configured: twilioService.isConfigured() });
+  });
+
+  // ============ PLANS & SUBSCRIPTIONS ============
+  
+  app.get("/api/plans", async (req, res) => {
+    try {
+      const plans = await planService.getAllPlans();
+      res.json(plans);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/subscription", isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const subscription = await planService.getCompanySubscription(companyId);
+      const plan = await planService.getCompanyPlan(companyId);
+      
+      res.json({ 
+        subscription, 
+        plan,
+        status: subscription?.status || "active",
+        trialEndsAt: subscription?.trialEndsAt || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/subscription/check/:feature", isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const feature = req.params.feature as keyof import("@shared/schema").PlanLimits;
+      const allowed = await planService.isFeatureAllowed(companyId, feature);
+      
+      res.json({ allowed, feature });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/subscription", isAuthenticated, withTenantContext, requireRole("admin"), async (req: any, res) => {
+    try {
+      const isSuperAdmin = storage.isSuperAdmin(req.user.claims.email || "");
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: "Only super admin can change subscriptions" });
+      }
+
+      const { companyId, planName, status, trialDays, notes } = z.object({
+        companyId: z.number(),
+        planName: z.string().optional(),
+        status: z.enum(["active", "trial", "suspended", "canceled"]).optional(),
+        trialDays: z.number().optional(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      if (planName) {
+        await planService.createSubscription(companyId, planName, status || "active", trialDays);
+      }
+      
+      if (status && !planName) {
+        await planService.updateSubscriptionStatus(companyId, status, notes);
+      }
+
+      const subscription = await planService.getCompanySubscription(companyId);
+      res.json({ success: true, subscription });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
   });
 
   return httpServer;

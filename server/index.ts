@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { seedPlans } from "./services/plans";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,6 +61,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await seedPlans().catch(console.error);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

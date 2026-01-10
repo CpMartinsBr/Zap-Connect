@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User, Cake, Box } from "lucide-react";
+import { Users, Package, ShoppingCart, Wheat, BookOpen, LogOut, User, Cake, Box, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
   { path: "/receitas", icon: BookOpen, label: "Receitas" },
   { path: "/equipe", icon: Users, label: "Equipe" },
+  { path: "/plano", icon: Crown, label: "Plano" },
 ];
 
 interface LayoutProps {

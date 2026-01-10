@@ -320,3 +320,26 @@ export function useCreateProductFromRecipe() {
     },
   });
 }
+
+// ============ PLANS & SUBSCRIPTIONS ============
+export function usePlans() {
+  return useQuery({
+    queryKey: ["plans"],
+    queryFn: api.getPlans,
+  });
+}
+
+export function useSubscription() {
+  return useQuery({
+    queryKey: ["subscription"],
+    queryFn: api.getSubscription,
+  });
+}
+
+export function useCheckFeature(feature: string) {
+  return useQuery({
+    queryKey: ["feature", feature],
+    queryFn: () => api.checkFeature(feature),
+    enabled: !!feature,
+  });
+}

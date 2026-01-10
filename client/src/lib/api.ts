@@ -263,3 +263,46 @@ export async function createProductFromRecipe(recipeId: number): Promise<Product
     method: "POST",
   });
 }
+
+// ============ PLANS & SUBSCRIPTIONS ============
+export interface Plan {
+  id: number;
+  name: string;
+  displayName: string;
+  description: string | null;
+  price: string;
+  limits: Record<string, unknown>;
+  features: string[];
+  isActive: number;
+  sortOrder: number;
+}
+
+export interface Subscription {
+  id: number;
+  companyId: number;
+  planId: number;
+  status: "active" | "trial" | "suspended" | "canceled";
+  startedAt: string;
+  trialEndsAt: string | null;
+  canceledAt: string | null;
+  plan: Plan;
+}
+
+export interface SubscriptionResponse {
+  subscription: Subscription | null;
+  plan: Plan;
+  status: string;
+  trialEndsAt: string | null;
+}
+
+export async function getPlans(): Promise<Plan[]> {
+  return fetchAPI("/api/plans");
+}
+
+export async function getSubscription(): Promise<SubscriptionResponse> {
+  return fetchAPI("/api/subscription");
+}
+
+export async function checkFeature(feature: string): Promise<{ allowed: boolean; feature: string }> {
+  return fetchAPI(`/api/subscription/check/${feature}`);
+}

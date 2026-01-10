@@ -15,6 +15,7 @@ import Ingredients from "@/pages/ingredients";
 import Packaging from "@/pages/packaging";
 import Recipes from "@/pages/recipes";
 import Team from "@/pages/team";
+import PlanPage from "@/pages/plan";
 
 function Router() {
   const { isAuthenticated, isLoading, isAllowed } = useAuth();
@@ -50,6 +51,7 @@ function Router() {
         <Route path="/embalagens" component={Packaging} />
         <Route path="/receitas" component={Recipes} />
         <Route path="/equipe" component={Team} />
+        <Route path="/plano" component={PlanPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
