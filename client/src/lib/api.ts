@@ -320,3 +320,11 @@ export async function changePlan(planName: string): Promise<SubscriptionResponse
     body: JSON.stringify({ planName }),
   });
 }
+
+// ============ COMPANY ============
+export async function updateCompany(data: { name?: string; logoUrl?: string | null }): Promise<unknown> {
+  return fetchAPI("/api/company", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}

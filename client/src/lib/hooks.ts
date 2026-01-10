@@ -368,3 +368,14 @@ export function useSyncPlan() {
     },
   });
 }
+
+// ============ COMPANY ============
+export function useUpdateCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name?: string; logoUrl?: string | null }) => api.updateCompany(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+  });
+}

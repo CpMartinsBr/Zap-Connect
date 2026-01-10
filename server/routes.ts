@@ -975,6 +975,32 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/company", isAuthenticated, withTenantContext, requireRole("admin", "manager"), async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const { name, logoUrl } = z.object({
+        name: z.string().optional(),
+        logoUrl: z.string().nullable().optional(),
+      }).parse(req.body);
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
+
+      const company = await storage.updateCompany(companyId, updateData);
+      res.json(company);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/subscription/check/:feature", isAuthenticated, withTenantContext, async (req: any, res) => {
     try {
       const companyId = req.tenant?.companyId;

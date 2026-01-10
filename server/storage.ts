@@ -60,6 +60,7 @@ export interface IRootStorage {
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyBySlug(slug: string): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company | undefined>;
   assignUserToCompany(userId: string, companyId: number): Promise<User | undefined>;
   
   getUserMemberships(userId: string): Promise<MembershipWithCompany[]>;
@@ -910,6 +911,15 @@ class RootStorage implements IRootStorage {
       .values(company)
       .returning();
     return newCompany;
+  }
+
+  async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company | undefined> {
+    const [updated] = await db
+      .update(schema.companies)
+      .set(data)
+      .where(eq(schema.companies.id, id))
+      .returning();
+    return updated;
   }
 
   async assignUserToCompany(userId: string, companyId: number): Promise<User | undefined> {
