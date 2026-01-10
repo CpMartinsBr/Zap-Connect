@@ -267,10 +267,6 @@ import type { PlanLimits } from "@shared/schema";
 
 export const requireFeature = (feature: keyof PlanLimits): RequestHandler => {
   return async (req, res, next) => {
-    if (req.tenant?.isSuperAdmin) {
-      return next();
-    }
-    
     if (!req.tenant?.companyId) {
       return res.status(403).json({ 
         error: "PLAN_REQUIRED",
