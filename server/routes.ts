@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, type ITenantStorage } from "./storage";
-import { setupAuth, isAuthenticated, withTenantContext, requireCompany, requireRole, type TenantContext } from "./replitAuth";
+import { setupAuth, isAuthenticated, withTenantContext, requireCompany, requireRole, requireFeature, type TenantContext } from "./replitAuth";
 import crypto from "crypto";
 import { 
   insertContactSchema, 
@@ -899,7 +899,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/whatsapp/send", isAuthenticated, withTenantContext, tenantMiddleware, async (req, res) => {
+  app.post("/whatsapp/send", isAuthenticated, withTenantContext, requireFeature("whatsappEnabled"), tenantMiddleware, async (req, res) => {
     try {
       if (!req.tenantStorage) {
         return res.status(403).json({ error: "No company associated" });

@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
 import { 
   ArrowRight, 
-  Users, 
   Package, 
   ClipboardList, 
   ChefHat,
@@ -12,70 +12,10 @@ import {
   DollarSign,
   Sparkles,
   Star,
-  Crown
+  Crown,
+  Loader2
 } from "lucide-react";
-
-const plans = [
-  {
-    id: "free",
-    name: "Gratuito",
-    description: "Para começar a organizar sua confeitaria",
-    price: "Grátis",
-    priceNote: "para sempre",
-    badge: null,
-    icon: <Sparkles className="w-5 h-5" />,
-    features: [
-      "Até 20 contatos",
-      "Até 15 produtos",
-      "Até 30 pedidos por mês",
-      "1 usuário",
-      "Controle de estoque básico"
-    ],
-    buttonText: "Começar grátis",
-    buttonVariant: "outline" as const,
-    highlight: false
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    description: "Para confeitarias em crescimento",
-    price: "R$ 29,90",
-    priceNote: "por mês",
-    badge: "Mais popular",
-    icon: <Star className="w-5 h-5" />,
-    features: [
-      "Contatos ilimitados",
-      "Produtos ilimitados",
-      "Pedidos ilimitados",
-      "Até 3 usuários",
-      "Relatórios completos",
-      "WhatsApp integrado"
-    ],
-    buttonText: "Escolher Pro",
-    buttonVariant: "default" as const,
-    highlight: true
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    description: "Tudo que você precisa, sem limites",
-    price: "R$ 59,90",
-    priceNote: "por mês",
-    badge: "Completo",
-    icon: <Crown className="w-5 h-5" />,
-    features: [
-      "Tudo do Pro",
-      "Usuários ilimitados",
-      "Suporte prioritário",
-      "Acesso à API",
-      "Relatórios avançados",
-      "Backup automático"
-    ],
-    buttonText: "Escolher Premium",
-    buttonVariant: "outline" as const,
-    highlight: false
-  }
-];
+import type { Plan } from "@/lib/api";
 
 const steps = [
   {
@@ -113,8 +53,31 @@ const benefits = [
   }
 ];
 
-function handleSelectPlan(planId: string) {
-  localStorage.setItem("selectedPlan", planId);
+const planIcons: Record<string, React.ReactNode> = {
+  free: <Sparkles className="w-5 h-5" />,
+  pro: <Star className="w-5 h-5" />,
+  premium: <Crown className="w-5 h-5" />,
+};
+
+const planBadges: Record<string, string | null> = {
+  free: null,
+  pro: "Mais popular",
+  premium: "Completo",
+};
+
+function formatPrice(price: string): { display: string; note: string } {
+  const numPrice = Number(price);
+  if (numPrice === 0) {
+    return { display: "Grátis", note: "para sempre" };
+  }
+  return { 
+    display: `R$ ${numPrice.toFixed(2).replace(".", ",")}`, 
+    note: "por mês" 
+  };
+}
+
+function handleSelectPlan(planName: string) {
+  localStorage.setItem("selectedPlan", planName);
   window.location.href = "/api/login";
 }
 
@@ -128,6 +91,15 @@ function scrollToPlans() {
 }
 
 export default function Landing() {
+  const { data: plans = [], isLoading: plansLoading } = useQuery<Plan[]>({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      const res = await fetch("/api/plans");
+      if (!res.ok) throw new Error("Failed to fetch plans");
+      return res.json();
+    },
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50/50 to-white flex flex-col">
       <header className="p-4 md:p-6 sticky top-0 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-50">
@@ -241,72 +213,85 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-              {plans.map((plan) => (
-                <Card 
-                  key={plan.id}
-                  className={`relative flex flex-col ${
-                    plan.highlight 
-                      ? "border-2 border-amber-500 shadow-lg scale-[1.02]" 
-                      : "border-gray-200"
-                  }`}
-                  data-testid={`card-plan-${plan.id}`}
-                >
-                  {plan.badge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className={`${
-                        plan.highlight 
-                          ? "bg-amber-500 text-white hover:bg-amber-500" 
-                          : "bg-gray-800 text-white hover:bg-gray-800"
-                      }`}>
-                        {plan.badge}
-                      </Badge>
-                    </div>
-                  )}
+            {plansLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+                {plans.map((plan) => {
+                  const { display: priceDisplay, note: priceNote } = formatPrice(plan.price);
+                  const isHighlight = plan.name === "pro";
+                  const badge = planBadges[plan.name];
+                  const icon = planIcons[plan.name] || <Sparkles className="w-5 h-5" />;
                   
-                  <CardHeader className="text-center pt-8">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 ${
-                      plan.highlight ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-600"
-                    }`}>
-                      {plan.icon}
-                    </div>
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <CardDescription>{plan.description}</CardDescription>
-                    
-                    <div className="pt-4">
-                      <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
-                      {plan.priceNote && (
-                        <span className="text-gray-500 text-sm ml-1">/{plan.priceNote}</span>
-                      )}
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="flex-1 flex flex-col">
-                    <ul className="space-y-3 mb-8 flex-1">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm text-gray-600">
-                          <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Button
-                      data-testid={`btn-select-${plan.id}`}
-                      onClick={() => handleSelectPlan(plan.id)}
-                      variant={plan.buttonVariant}
-                      className={`w-full ${
-                        plan.highlight 
-                          ? "bg-amber-600 hover:bg-amber-700 text-white" 
-                          : ""
+                  return (
+                    <Card 
+                      key={plan.id}
+                      className={`relative flex flex-col ${
+                        isHighlight 
+                          ? "border-2 border-amber-500 shadow-lg scale-[1.02]" 
+                          : "border-gray-200"
                       }`}
+                      data-testid={`card-plan-${plan.name}`}
                     >
-                      {plan.buttonText}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      {badge && (
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                          <Badge className={`${
+                            isHighlight 
+                              ? "bg-amber-500 text-white hover:bg-amber-500" 
+                              : "bg-gray-800 text-white hover:bg-gray-800"
+                          }`}>
+                            {badge}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      <CardHeader className="text-center pt-8">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 ${
+                          isHighlight ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {icon}
+                        </div>
+                        <CardTitle className="text-xl">{plan.displayName}</CardTitle>
+                        <CardDescription>{plan.description}</CardDescription>
+                        
+                        <div className="pt-4">
+                          <span className="text-3xl font-bold text-gray-900">{priceDisplay}</span>
+                          {priceNote && (
+                            <span className="text-gray-500 text-sm ml-1">/{priceNote}</span>
+                          )}
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="flex-1 flex flex-col">
+                        <ul className="space-y-3 mb-8 flex-1">
+                          {plan.features.map((feature, index) => (
+                            <li key={index} className="flex items-start gap-2 text-sm text-gray-600">
+                              <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+
+                        <Button
+                          data-testid={`btn-select-${plan.name}`}
+                          onClick={() => handleSelectPlan(plan.name)}
+                          variant={isHighlight ? "default" : "outline"}
+                          className={`w-full ${
+                            isHighlight 
+                              ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                              : ""
+                          }`}
+                        >
+                          {plan.name === "free" ? "Começar grátis" : `Escolher ${plan.displayName}`}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
 
             <p className="text-center text-sm text-gray-500 mt-8">
               Todos os planos incluem período de teste de 14 dias. Cancele quando quiser.

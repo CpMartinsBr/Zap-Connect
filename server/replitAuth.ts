@@ -261,3 +261,38 @@ export const requireRole = (...allowedRoles: string[]): RequestHandler => {
     return next();
   };
 };
+
+import * as planService from "./services/plans";
+import type { PlanLimits } from "@shared/schema";
+
+export const requireFeature = (feature: keyof PlanLimits): RequestHandler => {
+  return async (req, res, next) => {
+    if (req.tenant?.isSuperAdmin) {
+      return next();
+    }
+    
+    if (!req.tenant?.companyId) {
+      return res.status(403).json({ 
+        error: "PLAN_REQUIRED",
+        message: "Nenhuma empresa associada ao usuário" 
+      });
+    }
+
+    try {
+      const allowed = await planService.isFeatureAllowed(req.tenant.companyId, feature);
+      
+      if (!allowed) {
+        return res.status(403).json({ 
+          error: "PLAN_UPGRADE_REQUIRED",
+          feature,
+          message: "Seu plano atual não permite essa funcionalidade. Faça upgrade para continuar."
+        });
+      }
+      
+      return next();
+    } catch (error) {
+      console.error("Error checking feature:", error);
+      return res.status(500).json({ message: "Erro ao verificar permissões do plano" });
+    }
+  };
+};

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/hooks/useAuth";
 import { useSyncPlan } from "@/lib/hooks";
+import { PlanUpgradeProvider } from "@/hooks/usePlanUpgrade";
 import { useEffect, useRef } from "react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
@@ -89,8 +90,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <PlanUpgradeProvider>
+          <Toaster />
+          <Router />
+        </PlanUpgradeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

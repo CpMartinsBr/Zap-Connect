@@ -16,6 +16,7 @@ import type { ContactWithLastMessage, UpdateContact, InsertContact, Message } fr
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePlanUpgrade } from "@/hooks/usePlanUpgrade";
 
 const paymentMethods = [
   { value: "dinheiro", label: "Dinheiro" },
@@ -68,7 +69,10 @@ function ClientDetails({
   const { data: products = [] } = useProducts();
   const createOrder = useCreateOrder();
   const { data: messages = [] } = useMessages(contact.id);
-  const sendWhatsApp = useSendWhatsAppMessage();
+  const { showUpgradeDialog } = usePlanUpgrade();
+  const sendWhatsApp = useSendWhatsAppMessage({ 
+    onPlanError: () => showUpgradeDialog("whatsappEnabled") 
+  });
   const [messageText, setMessageText] = useState("");
 
   const [orderItems, setOrderItems] = useState<OrderItemForm[]>([]);

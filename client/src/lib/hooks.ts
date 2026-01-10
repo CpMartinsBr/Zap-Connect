@@ -64,7 +64,7 @@ export function useSendMessage() {
   });
 }
 
-export function useSendWhatsAppMessage() {
+export function useSendWhatsAppMessage(options?: { onPlanError?: () => void }) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ phone, message, contactId }: { phone: string; message: string; contactId?: number }) => 
@@ -73,6 +73,11 @@ export function useSendWhatsAppMessage() {
       if (variables.contactId) {
         queryClient.invalidateQueries({ queryKey: ["messages", variables.contactId] });
         queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      }
+    },
+    onError: (error) => {
+      if (error.message.includes("PLAN_UPGRADE_REQUIRED") && options?.onPlanError) {
+        options.onPlanError();
       }
     },
   });

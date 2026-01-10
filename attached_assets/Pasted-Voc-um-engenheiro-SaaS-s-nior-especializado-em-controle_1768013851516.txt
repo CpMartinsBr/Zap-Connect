@@ -1,0 +1,67 @@
+Você é um engenheiro SaaS sênior especializado em controle de planos e billing-ready systems.
+
+Contexto:
+- SaaS para confeiteiros
+- Landing page e página de planos existem
+- Planos: Free, Pro, Premium
+- Backend e frontend no mesmo projeto
+- Ainda NÃO existe pagamento automático
+- Problemas atuais:
+  1) Valores dos planos divergentes entre landing e área logada
+  2) Funcionalidades premium liberadas para plano básico
+
+Objetivo:
+Centralizar a definição de planos e implementar controle real de acesso às funcionalidades, com mínimo impacto no código existente.
+
+REQUISITOS OBRIGATÓRIOS:
+
+1️⃣ FONTE ÚNICA DE VERDADE DOS PLANOS
+- Criar ou usar uma tabela/config única de planos
+- Campos mínimos:
+  - name
+  - price
+  - interval
+  - features (json)
+  - is_popular
+- Criar endpoint GET /api/plans
+- Landing page deve consumir esse endpoint
+- Página de planos logada deve consumir esse endpoint
+- Remover valores hardcoded do frontend
+
+2️⃣ VINCULAR USUÁRIO AO PLANO
+- Garantir que todo usuário tenha um plano
+- Default = Free
+- Plano escolhido na landing deve ser persistido no cadastro
+
+3️⃣ CONTROLE DE ACESSO NO BACKEND
+- Criar middleware simples de plano (ex: requirePlan)
+- O middleware deve:
+  - Ler plano do usuário autenticado
+  - Comparar com plano mínimo exigido
+  - Bloquear com erro claro se não permitido
+
+4️⃣ APLICAR BLOQUEIOS REAIS
+Aplicar o middleware nas rotas:
+- Envio de WhatsApp automático → exigir PRO ou PREMIUM
+- Outras funções premium (se existirem)
+
+5️⃣ UX DE BLOQUEIO (frontend)
+- Quando backend retornar erro de plano:
+  - Mostrar mensagem clara:
+    "Seu plano atual não permite essa funcionalidade"
+  - Mostrar CTA: "Ver planos"
+
+6️⃣ NÃO IMPLEMENTAR PAGAMENTO
+- Nenhuma integração com Stripe, Mercado Pago etc
+- Apenas controle lógico de plano
+
+ANTES DE CODIFICAR:
+- Avaliar o código atual
+- Priorizar reaproveitamento
+- Evitar refatorações grandes
+
+ENTREGA FINAL:
+- Landing e área logada com preços iguais
+- Backend bloqueando funções premium
+- Usuário Free não consegue usar WhatsApp automático
+- Código simples, legível e fácil de evoluir
