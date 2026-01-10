@@ -58,8 +58,15 @@ export default function PlanPage() {
   const isPaidPlan = currentPlan && Number(currentPlan.price) > 0;
 
   const getPriceIdForPlan = (planName: string): string | undefined => {
-    const product = billingProducts.find(p => p.name.toLowerCase().includes(planName.toLowerCase()));
-    return product?.priceId;
+    const product = billingProducts.find(p => {
+      const productName = (p as any).product_name || p.name || "";
+      const metadata = (p as any).product_metadata;
+      if (metadata?.plan_name) {
+        return metadata.plan_name.toLowerCase() === planName.toLowerCase();
+      }
+      return productName.toLowerCase().includes(planName.toLowerCase());
+    });
+    return (product as any)?.price_id || product?.priceId;
   };
 
   const handlePlanAction = async () => {
