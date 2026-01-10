@@ -1,0 +1,97 @@
+Você é um engenheiro fullstack sênior especializado em SaaS B2B.
+
+Contexto:
+- Aplicação SaaS para confeiteiros
+- Multi-tenant (cada empresa é um cliente)
+- Já existe autenticação, empresas e usuários
+- O sistema já está em produção e não pode quebrar
+
+Objetivo:
+Implementar um sistema simples e escalável de planos e assinaturas (SaaS), começando apenas com controle interno (sem cobrança automática ainda).
+
+Princípios obrigatórios:
+- Simplicidade máxima
+- Nenhuma dependência externa agora (Stripe etc.)
+- Código fácil de entender e evoluir
+- Preparado para cobrança automática no futuro
+- Não bloquear usuários acidentalmente
+
+Modelo de negócio inicial:
+- Free
+- Pro
+- Premium
+
+Cada empresa:
+- Possui exatamente um plano ativo
+- Pode mudar de plano
+- Pode ter status:
+  - ativa
+  - trial
+  - suspensa
+
+Regras de negócio:
+1) O plano controla acesso a funcionalidades
+2) O pagamento pode ser registrado manualmente no início
+3) Trial deve ter data de expiração
+4) Usuários suspensos não podem usar funcionalidades premium
+5) Admin do sistema pode mudar plano/status manualmente
+
+BACKEND – Implementação desejada:
+
+- Criar entidade lógica "Plan"
+  Campos mínimos:
+    - id
+    - name (free, pro, premium)
+    - description
+    - limits (json simples)
+
+- Criar entidade "Subscription" (ou equivalente)
+  Campos mínimos:
+    - companyId
+    - planId
+    - status (active, trial, suspended)
+    - startedAt
+    - trialEndsAt (opcional)
+    - canceledAt (opcional)
+
+- Implementar helpers claros:
+  - getCompanyPlan(companyId)
+  - isFeatureAllowed(companyId, feature)
+
+- NÃO implementar cobrança automática agora
+
+FRONTEND – Implementação desejada:
+
+- Tela simples de "Plano e Assinatura"
+- Mostrar:
+  - Plano atual
+  - Status (ativo / trial / suspenso)
+  - Data de expiração do trial (se houver)
+- Não permitir troca automática de plano ainda
+- Mensagem clara quando funcionalidade estiver bloqueada
+
+UX:
+- Linguagem simples, não técnica
+- Nada de termos como "subscription_id"
+- Usar termos como:
+  - Plano
+  - Assinatura
+  - Período de teste
+
+Preparação para o futuro:
+- Estrutura pronta para:
+  - Stripe
+  - Webhooks
+  - Renovação automática
+- Mas sem implementar agora
+
+Entrega esperada:
+- Sistema funcional de planos
+- Sem impacto em usuários atuais
+- Código organizado e documentado
+- Fácil de evoluir depois
+
+Antes de implementar:
+- Analise o código atual
+- Explique a estratégia escolhida
+- Só então implemente

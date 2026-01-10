@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // ============ COMPANIES (Multi-tenant) ============
-export type PlanType = "free" | "starter" | "professional" | "enterprise";
+export type PlanType = "free" | "pro" | "premium";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -21,6 +21,69 @@ export const insertCompanySchema = createInsertSchema(companies).omit({
 
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
+// ============ PLANS (Subscription Plans) ============
+export type SubscriptionStatus = "active" | "trial" | "suspended" | "canceled";
+
+export const plans = pgTable("plans", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull().default("0"),
+  limits: jsonb("limits").notNull().default({}),
+  features: text("features").array().notNull().default(sql`ARRAY[]::text[]`),
+  isActive: integer("is_active").notNull().default(1),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPlanSchema = createInsertSchema(plans).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Plan = typeof plans.$inferSelect;
+export type InsertPlan = z.infer<typeof insertPlanSchema>;
+
+export type PlanLimits = {
+  maxContacts?: number;
+  maxProducts?: number;
+  maxOrders?: number;
+  maxTeamMembers?: number;
+  whatsappEnabled?: boolean;
+  reportsEnabled?: boolean;
+  apiAccess?: boolean;
+};
+
+// ============ SUBSCRIPTIONS ============
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }).unique(),
+  planId: integer("plan_id").notNull().references(() => plans.id),
+  status: text("status").notNull().default("active"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  trialEndsAt: timestamp("trial_ends_at"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  canceledAt: timestamp("canceled_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+
+export type SubscriptionWithPlan = Subscription & {
+  plan: Plan;
+};
 
 // ============ AUTH (Replit Auth) ============
 // Session storage table - mandatory for Replit Auth
