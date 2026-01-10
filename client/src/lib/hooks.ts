@@ -343,3 +343,13 @@ export function useCheckFeature(feature: string) {
     enabled: !!feature,
   });
 }
+
+export function useSyncPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (planName: string) => api.syncPlan(planName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+  });
+}

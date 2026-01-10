@@ -306,3 +306,10 @@ export async function getSubscription(): Promise<SubscriptionResponse> {
 export async function checkFeature(feature: string): Promise<{ allowed: boolean; feature: string }> {
   return fetchAPI(`/api/subscription/check/${feature}`);
 }
+
+export async function syncPlan(planName: string): Promise<SubscriptionResponse> {
+  return fetchAPI("/api/subscription/sync", {
+    method: "POST",
+    body: JSON.stringify({ planName }),
+  });
+}

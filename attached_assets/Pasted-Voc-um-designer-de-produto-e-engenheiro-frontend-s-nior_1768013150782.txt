@@ -1,0 +1,101 @@
+Você é um designer de produto e engenheiro frontend sênior especializado em SaaS B2B.
+
+Contexto:
+- Aplicação SaaS para confeiteiros
+- Landing page já existe (antes do login)
+- Sistema de planos já foi implementado (Free, Pro, Premium)
+- Ainda NÃO existe cobrança automática
+- Público leigo, não técnico
+
+Objetivo:
+Transformar a tela inicial (antes do login) em uma landing page SaaS profissional, clara e orientada à conversão, permitindo que o usuário escolha um plano antes de criar a conta.
+
+Princípios obrigatórios:
+- Design limpo e profissional
+- Linguagem simples (confeiteiros, não devs)
+- Não aumentar complexidade técnica
+- Não quebrar fluxos existentes
+- Mobile-first
+
+FUNCIONALIDADES DESEJADAS:
+
+1️⃣ HERO SECTION (Topo)
+- Título forte e claro (ex: "Gerencie sua confeitaria sem complicação")
+- Subtítulo focado em benefício real (tempo, organização, lucro)
+- CTA principal: "Começar grátis"
+- CTA secundário: "Ver planos"
+
+2️⃣ SEÇÃO: COMO FUNCIONA (3 passos simples)
+Exemplo:
+- Cadastre seus produtos e embalagens
+- Controle pedidos e clientes
+- Saiba exatamente quanto você lucra
+
+Usar ícones simples e textos curtos.
+
+3️⃣ SEÇÃO: PLANOS
+Criar uma seção de comparação visual dos planos:
+
+Planos:
+- Gratuito
+- Pro
+- Premium
+
+Para cada plano:
+- Nome
+- Breve descrição
+- Principais recursos
+- Botão: "Escolher este plano"
+
+Regras:
+- Plano gratuito claramente marcado como "Grátis"
+- Pro como "Mais popular"
+- Premium como "Completo"
+
+4️⃣ FLUXO DE ESCOLHA DE PLANO
+Ao clicar em "Escolher plano":
+- Salvar plano escolhido (ex: localStorage ou state)
+- Redirecionar para cadastro
+- Criar conta já vinculada ao plano escolhido
+- Se não escolher plano → default = Free
+
+NÃO implementar pagamento agora.
+
+5️⃣ PROVA DE VALOR (simples)
+Criar uma seção curta com:
+- "Feito para confeiteiros e pequenos negócios"
+- 3 benefícios claros:
+  - Organização
+  - Controle de custos
+  - Mais tempo para vender
+
+6️⃣ FOOTER SIMPLES
+- Nome do produto
+- Frase curta de confiança
+- Nada de links complexos
+
+UX COPY (muito importante):
+- Evitar termos técnicos
+- Evitar “assinatura”, “subscription”, “billing”
+- Usar:
+  - Plano
+  - Período de teste
+  - Começar grátis
+
+DESIGN:
+- Manter o visual atual como base
+- Melhorar espaçamento, hierarquia e contraste
+- Não usar bibliotecas novas se possível
+- Usar componentes existentes
+
+ANTES DE IMPLEMENTAR:
+1) Avalie a landing page atual
+2) Explique rapidamente o que será melhorado
+3) Só então implemente
+
+ENTREGA ESPERADA:
+- Landing page com aparência profissional
+- Comparação clara de planos
+- Escolha de plano antes do cadastro
+- Fluxo simples e funcional
+- Sem cobrança automática

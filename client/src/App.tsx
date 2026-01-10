@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/hooks/useAuth";
+import { useSyncPlan } from "@/lib/hooks";
+import { useEffect, useRef } from "react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import AccessDenied from "@/pages/access-denied";
@@ -17,8 +19,32 @@ import Recipes from "@/pages/recipes";
 import Team from "@/pages/team";
 import PlanPage from "@/pages/plan";
 
+function PlanSync({ user }: { user: { companyId?: number | null } | null }) {
+  const syncPlan = useSyncPlan();
+  const hasSynced = useRef(false);
+
+  useEffect(() => {
+    if (hasSynced.current) return;
+    if (!user?.companyId) return;
+    
+    const selectedPlan = localStorage.getItem("selectedPlan");
+    if (selectedPlan) {
+      hasSynced.current = true;
+      localStorage.removeItem("selectedPlan");
+      syncPlan.mutate(selectedPlan, {
+        onError: () => {
+          localStorage.setItem("selectedPlan", selectedPlan);
+          hasSynced.current = false;
+        }
+      });
+    }
+  }, [syncPlan, user?.companyId]);
+
+  return null;
+}
+
 function Router() {
-  const { isAuthenticated, isLoading, isAllowed } = useAuth();
+  const { isAuthenticated, isLoading, isAllowed, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -43,6 +69,7 @@ function Router() {
 
   return (
     <Layout>
+      <PlanSync user={user ?? null} />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/estoque" component={Inventory} />
