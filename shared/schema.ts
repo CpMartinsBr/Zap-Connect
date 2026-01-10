@@ -12,6 +12,7 @@ export const companies = pgTable("companies", {
   slug: text("slug").notNull().unique(),
   logoUrl: text("logo_url"),
   plan: text("plan").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

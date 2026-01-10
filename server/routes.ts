@@ -1114,5 +1114,140 @@ export async function registerRoutes(
     }
   });
 
+  // ============ STRIPE BILLING ============
+  
+  // Create Stripe checkout session for subscription
+  app.post("/api/billing/checkout", isAuthenticated, withTenantContext, requireRole("admin"), async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const { priceId } = z.object({
+        priceId: z.string(),
+      }).parse(req.body);
+
+      // Get or create Stripe customer
+      const { getUncachableStripeClient } = await import("./stripeClient");
+      const stripe = await getUncachableStripeClient();
+      
+      const company = await storage.getCompany(companyId);
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      let customerId = company.stripeCustomerId;
+      
+      // Create Stripe customer if doesn't exist
+      if (!customerId) {
+        const user = req.user.claims;
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { 
+            companyId: String(companyId),
+            companyName: company.name,
+          },
+        });
+        customerId = customer.id;
+        
+        // Save customer ID to company
+        await storage.updateCompany(companyId, { stripeCustomerId: customerId });
+      }
+
+      // Create checkout session
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "subscription",
+        success_url: `${baseUrl}/plano?success=true`,
+        cancel_url: `${baseUrl}/plano?canceled=true`,
+        metadata: {
+          companyId: String(companyId),
+        },
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Stripe products with prices (for plan selection)
+  app.get("/api/billing/products", async (req, res) => {
+    try {
+      const { sql } = await import("drizzle-orm");
+      const { db } = await import("./db");
+      
+      // Query products from stripe schema (synced by stripe-replit-sync)
+      const result = await db.execute(sql`
+        SELECT 
+          p.id as product_id,
+          p.name as product_name,
+          p.description as product_description,
+          p.metadata as product_metadata,
+          pr.id as price_id,
+          pr.unit_amount,
+          pr.currency,
+          pr.recurring
+        FROM stripe.products p
+        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.active = true
+        ORDER BY pr.unit_amount ASC
+      `);
+
+      res.json({ products: result.rows });
+    } catch (error: any) {
+      console.error("Products error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create customer portal session (for managing subscription)
+  app.post("/api/billing/portal", isAuthenticated, withTenantContext, async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const company = await storage.getCompany(companyId);
+      if (!company?.stripeCustomerId) {
+        return res.status(400).json({ error: "No billing account found" });
+      }
+
+      const { getUncachableStripeClient } = await import("./stripeClient");
+      const stripe = await getUncachableStripeClient();
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const session = await stripe.billingPortal.sessions.create({
+        customer: company.stripeCustomerId,
+        return_url: `${baseUrl}/plano`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Portal error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Stripe publishable key for frontend
+  app.get("/api/billing/config", async (req, res) => {
+    try {
+      const { getStripePublishableKey } = await import("./stripeClient");
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
