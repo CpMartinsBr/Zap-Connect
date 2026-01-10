@@ -133,7 +133,7 @@ export default function Landing() {
         <section className="px-4 md:px-6 py-16 md:py-24">
           <div className="max-w-4xl mx-auto text-center">
             <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100 mb-6">
-              Feito para pequenos produtores
+              Feito para quem vende sob encomenda
             </Badge>
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
               Gerencie seu negócio <span className="text-rose-600">sem complicação</span>
@@ -303,7 +303,7 @@ export default function Landing() {
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-                Feito para pequenos produtores
+                Feito para quem vende sob encomenda
               </h2>
               <p className="text-gray-600">
                 Tudo que você precisa para crescer sem perder o controle
@@ -356,7 +356,7 @@ export default function Landing() {
             <span className="text-white font-medium">Grisly</span>
           </div>
           <p className="text-sm text-center md:text-right">
-            grisly.com.br - A ferramenta que pequenos produtores confiam para crescer.
+            grisly.com.br - A ferramenta para quem vende sob encomenda.
           </p>
         </div>
       </footer>
