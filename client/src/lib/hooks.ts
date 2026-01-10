@@ -341,6 +341,16 @@ export function useSubscription() {
   });
 }
 
+export function useChangePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (planName: string) => api.changePlan(planName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+  });
+}
+
 export function useCheckFeature(feature: string) {
   return useQuery({
     queryKey: ["feature", feature],

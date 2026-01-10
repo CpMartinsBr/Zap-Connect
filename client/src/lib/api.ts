@@ -313,3 +313,10 @@ export async function syncPlan(planName: string): Promise<SubscriptionResponse> 
     body: JSON.stringify({ planName }),
   });
 }
+
+export async function changePlan(planName: string): Promise<SubscriptionResponse> {
+  return fetchAPI("/api/subscription/change", {
+    method: "POST",
+    body: JSON.stringify({ planName }),
+  });
+}

@@ -101,12 +101,12 @@ export default function Landing() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50/50 to-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex flex-col">
       <header className="p-4 md:p-6 sticky top-0 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ChefHat className="w-6 h-6 text-amber-600" />
-            <span className="text-xl font-semibold text-gray-900">Doce Gestão</span>
+            <ChefHat className="w-6 h-6 text-rose-600" />
+            <span className="text-xl font-semibold text-gray-900">Grisly</span>
           </div>
           <div className="flex items-center gap-3">
             <Button 
@@ -132,11 +132,11 @@ export default function Landing() {
       <main className="flex-1">
         <section className="px-4 md:px-6 py-16 md:py-24">
           <div className="max-w-4xl mx-auto text-center">
-            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 mb-6">
+            <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100 mb-6">
               Feito para confeiteiros
             </Badge>
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Gerencie sua confeitaria <span className="text-amber-600">sem complicação</span>
+              Gerencie sua confeitaria <span className="text-rose-600">sem complicação</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
               Controle pedidos, clientes, receitas e custos em um só lugar. 
@@ -148,7 +148,7 @@ export default function Landing() {
                 data-testid="btn-comecar-gratis"
                 onClick={handleLogin}
                 size="lg"
-                className="bg-amber-600 text-white hover:bg-amber-700 font-medium px-8 text-lg"
+                className="bg-rose-600 text-white hover:bg-rose-700 font-medium px-8 text-lg"
               >
                 Começar grátis
                 <ArrowRight className="w-5 h-5 ml-2" />
@@ -184,10 +184,10 @@ export default function Landing() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {steps.map((step, index) => (
                 <div key={index} className="text-center">
-                  <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-600">
+                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-700">
                     {step.icon}
                   </div>
-                  <div className="text-sm font-medium text-amber-600 mb-2">
+                  <div className="text-sm font-medium text-rose-600 mb-2">
                     Passo {index + 1}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -215,7 +215,7 @@ export default function Landing() {
 
             {plansLoading ? (
               <div className="flex justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+                <Loader2 className="w-8 h-8 animate-spin text-rose-600" />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
@@ -230,7 +230,7 @@ export default function Landing() {
                       key={plan.id}
                       className={`relative flex flex-col ${
                         isHighlight 
-                          ? "border-2 border-amber-500 shadow-lg scale-[1.02]" 
+                          ? "border-2 border-rose-500 shadow-lg scale-[1.02]" 
                           : "border-gray-200"
                       }`}
                       data-testid={`card-plan-${plan.name}`}
@@ -239,8 +239,8 @@ export default function Landing() {
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                           <Badge className={`${
                             isHighlight 
-                              ? "bg-amber-500 text-white hover:bg-amber-500" 
-                              : "bg-gray-800 text-white hover:bg-gray-800"
+                              ? "bg-rose-500 text-white hover:bg-rose-500" 
+                              : "bg-slate-700 text-white hover:bg-slate-700"
                           }`}>
                             {badge}
                           </Badge>
@@ -249,7 +249,7 @@ export default function Landing() {
                       
                       <CardHeader className="text-center pt-8">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 ${
-                          isHighlight ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-600"
+                          isHighlight ? "bg-rose-100 text-rose-600" : "bg-slate-100 text-slate-600"
                         }`}>
                           {icon}
                         </div>
@@ -280,7 +280,7 @@ export default function Landing() {
                           variant={isHighlight ? "default" : "outline"}
                           className={`w-full ${
                             isHighlight 
-                              ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                              ? "bg-rose-600 hover:bg-rose-700 text-white" 
                               : ""
                           }`}
                         >
@@ -312,8 +312,8 @@ export default function Landing() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {benefits.map((benefit, index) => (
-                <div key={index} className="text-center p-6 rounded-2xl bg-gray-50">
-                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-amber-600">
+                <div key={index} className="text-center p-6 rounded-2xl bg-slate-50">
+                  <div className="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-rose-600">
                     {benefit.icon}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -328,19 +328,19 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="px-4 md:px-6 py-16 md:py-20 bg-amber-600 text-white">
+        <section className="px-4 md:px-6 py-16 md:py-20 bg-slate-800 text-white">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">
               Pronto para organizar sua confeitaria?
             </h2>
-            <p className="text-amber-100 mb-8 text-lg">
+            <p className="text-slate-300 mb-8 text-lg">
               Comece grátis agora mesmo. Leva menos de 1 minuto.
             </p>
             <Button 
               data-testid="btn-comecar-footer"
               onClick={handleLogin}
               size="lg"
-              className="bg-white text-amber-600 hover:bg-amber-50 font-medium px-8 text-lg"
+              className="bg-rose-600 text-white hover:bg-rose-700 font-medium px-8 text-lg"
             >
               Começar grátis
               <ArrowRight className="w-5 h-5 ml-2" />
@@ -352,11 +352,11 @@ export default function Landing() {
       <footer className="px-4 md:px-6 py-8 bg-gray-900 text-gray-400">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <ChefHat className="w-5 h-5 text-amber-500" />
-            <span className="text-white font-medium">Doce Gestão</span>
+            <ChefHat className="w-5 h-5 text-rose-500" />
+            <span className="text-white font-medium">Grisly</span>
           </div>
           <p className="text-sm text-center md:text-right">
-            A ferramenta que os confeiteiros confiam para crescer.
+            grisly.com.br - A ferramenta que os confeiteiros confiam para crescer.
           </p>
         </div>
       </footer>

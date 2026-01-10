@@ -1025,6 +1025,36 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/subscription/change", isAuthenticated, withTenantContext, tenantMiddleware, async (req: any, res) => {
+    try {
+      const companyId = req.tenant?.companyId;
+      if (!companyId) {
+        return res.status(403).json({ error: "No company associated" });
+      }
+
+      const { planName } = z.object({
+        planName: z.string(),
+      }).parse(req.body);
+
+      await planService.createSubscription(companyId, planName, "active");
+
+      const subscription = await planService.getCompanySubscription(companyId);
+      const plan = await planService.getCompanyPlan(companyId);
+      
+      res.json({ 
+        subscription, 
+        plan,
+        status: subscription?.status || "active",
+        trialEndsAt: subscription?.trialEndsAt || null,
+      });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/admin/subscription", isAuthenticated, withTenantContext, requireRole("admin"), async (req: any, res) => {
     try {
       const isSuperAdmin = storage.isSuperAdmin(req.user.claims.email || "");

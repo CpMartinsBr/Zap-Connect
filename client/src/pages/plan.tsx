@@ -1,9 +1,12 @@
-import { Crown, Check, AlertTriangle, Clock, Star } from "lucide-react";
+import { Crown, Check, AlertTriangle, Clock, Star, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { usePlans, useSubscription } from "@/lib/hooks";
+import { Button } from "@/components/ui/button";
+import { usePlans, useSubscription, useChangePlan } from "@/lib/hooks";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   active: { label: "Ativo", color: "bg-green-100 text-green-800", icon: <Check className="w-4 h-4" /> },
@@ -15,6 +18,13 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 export default function PlanPage() {
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const { data: subscriptionData, isLoading: subLoading } = useSubscription();
+  const changePlan = useChangePlan();
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; planName: string; planDisplayName: string; isUpgrade: boolean }>({
+    open: false,
+    planName: "",
+    planDisplayName: "",
+    isUpgrade: true,
+  });
 
   const isLoading = plansLoading || subLoading;
 
@@ -30,6 +40,16 @@ export default function PlanPage() {
   const subscription = subscriptionData?.subscription;
   const status = subscriptionData?.status || "active";
   const trialEndsAt = subscriptionData?.trialEndsAt;
+  
+  const currentPlanIndex = plans.findIndex(p => p.id === currentPlan?.id);
+
+  const handleChangePlan = (planName: string) => {
+    changePlan.mutate(planName, {
+      onSuccess: () => {
+        setConfirmDialog({ open: false, planName: "", planDisplayName: "", isUpgrade: true });
+      },
+    });
+  };
 
   const statusInfo = statusConfig[status] || statusConfig.active;
   const trialDaysLeft = trialEndsAt ? differenceInDays(new Date(trialEndsAt), new Date()) : null;
@@ -121,12 +141,14 @@ export default function PlanPage() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Todos os Planos</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {plans.map((plan) => {
+            {plans.map((plan, index) => {
               const isCurrentPlan = plan.id === currentPlan?.id;
+              const isUpgrade = index > currentPlanIndex;
+              
               return (
                 <Card 
                   key={plan.id} 
-                  className={`relative ${isCurrentPlan ? "border-2 border-primary ring-2 ring-primary/20" : ""}`}
+                  className={`relative flex flex-col ${isCurrentPlan ? "border-2 border-primary ring-2 ring-primary/20" : ""}`}
                   data-testid={`card-plan-${plan.name}`}
                 >
                   {isCurrentPlan && (
@@ -153,33 +175,79 @@ export default function PlanPage() {
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2 text-sm">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-2 text-gray-600">
+                  <CardContent className="flex-1 flex flex-col">
+                    <ul className="space-y-2 text-sm flex-1">
+                      {plan.features.map((feature, fIndex) => (
+                        <li key={fIndex} className="flex items-start gap-2 text-gray-600">
                           <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
                           {feature}
                         </li>
                       ))}
                     </ul>
+                    
+                    {!isCurrentPlan && (
+                      <Button
+                        data-testid={`btn-change-${plan.name}`}
+                        onClick={() => setConfirmDialog({ 
+                          open: true, 
+                          planName: plan.name, 
+                          planDisplayName: plan.displayName,
+                          isUpgrade 
+                        })}
+                        variant={isUpgrade ? "default" : "outline"}
+                        className={`w-full mt-4 ${isUpgrade ? "bg-rose-600 hover:bg-rose-700" : ""}`}
+                      >
+                        {isUpgrade ? (
+                          <>
+                            <ArrowUp className="w-4 h-4 mr-2" />
+                            Fazer upgrade
+                          </>
+                        ) : (
+                          <>
+                            <ArrowDown className="w-4 h-4 mr-2" />
+                            Mudar para este plano
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               );
             })}
           </div>
         </div>
-
-        <Card className="bg-gray-50 border-dashed">
-          <CardContent className="pt-6">
-            <div className="text-center text-gray-600">
-              <p className="font-medium">Quer mudar de plano?</p>
-              <p className="text-sm mt-1">
-                Entre em contato com o suporte para solicitar uma mudança de plano.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmDialog.isUpgrade ? "Confirmar upgrade" : "Confirmar mudança de plano"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDialog.isUpgrade 
+                ? `Você está prestes a fazer upgrade para o plano ${confirmDialog.planDisplayName}. Você terá acesso a todos os recursos do novo plano imediatamente.`
+                : `Você está prestes a mudar para o plano ${confirmDialog.planDisplayName}. Alguns recursos podem deixar de estar disponíveis.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handleChangePlan(confirmDialog.planName)}
+              disabled={changePlan.isPending}
+              className={confirmDialog.isUpgrade ? "bg-rose-600 hover:bg-rose-700" : ""}
+            >
+              {changePlan.isPending ? "Processando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
