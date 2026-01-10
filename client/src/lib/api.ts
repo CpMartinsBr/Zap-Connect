@@ -321,6 +321,33 @@ export async function changePlan(planName: string): Promise<SubscriptionResponse
   });
 }
 
+// ============ BILLING ============
+export interface CheckoutSession {
+  sessionId: string;
+  url: string;
+}
+
+export interface PortalSession {
+  url: string;
+}
+
+export async function createCheckoutSession(priceId: string): Promise<CheckoutSession> {
+  return fetchAPI("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({ priceId }),
+  });
+}
+
+export async function createPortalSession(): Promise<PortalSession> {
+  return fetchAPI("/api/billing/portal", {
+    method: "POST",
+  });
+}
+
+export async function getBillingProducts(): Promise<{ id: string; name: string; price: number; priceId: string; interval: string }[]> {
+  return fetchAPI("/api/billing/products");
+}
+
 // ============ COMPANY ============
 export async function updateCompany(data: { name?: string; logoUrl?: string | null }): Promise<unknown> {
   return fetchAPI("/api/company", {

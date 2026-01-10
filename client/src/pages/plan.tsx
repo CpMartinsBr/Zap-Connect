@@ -1,12 +1,13 @@
-import { Crown, Check, AlertTriangle, Clock, Star, ArrowUp, ArrowDown } from "lucide-react";
+import { Crown, Check, AlertTriangle, Clock, Star, ArrowUp, CreditCard, ExternalLink, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { usePlans, useSubscription, useChangePlan } from "@/lib/hooks";
+import { usePlans, useSubscription, useBillingProducts, useCreateCheckout, useCreatePortal, useChangePlan } from "@/lib/hooks";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   active: { label: "Ativo", color: "bg-green-100 text-green-800", icon: <Check className="w-4 h-4" /> },
@@ -18,15 +19,28 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 export default function PlanPage() {
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const { data: subscriptionData, isLoading: subLoading } = useSubscription();
+  const { data: billingProducts = [] } = useBillingProducts();
+  const createCheckout = useCreateCheckout();
+  const createPortal = useCreatePortal();
   const changePlan = useChangePlan();
-  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; planName: string; planDisplayName: string; isUpgrade: boolean }>({
+  
+  const [confirmDialog, setConfirmDialog] = useState<{ 
+    open: boolean; 
+    planName: string; 
+    planDisplayName: string; 
+    isUpgrade: boolean;
+    isFree: boolean;
+    priceId?: string;
+  }>({
     open: false,
     planName: "",
     planDisplayName: "",
     isUpgrade: true,
+    isFree: false,
   });
 
   const isLoading = plansLoading || subLoading;
+  const isProcessing = createCheckout.isPending || createPortal.isPending || changePlan.isPending;
 
   if (isLoading) {
     return (
@@ -40,15 +54,61 @@ export default function PlanPage() {
   const subscription = subscriptionData?.subscription;
   const status = subscriptionData?.status || "active";
   const trialEndsAt = subscriptionData?.trialEndsAt;
-  
   const currentPlanIndex = plans.findIndex(p => p.id === currentPlan?.id);
+  const isPaidPlan = currentPlan && Number(currentPlan.price) > 0;
 
-  const handleChangePlan = (planName: string) => {
-    changePlan.mutate(planName, {
-      onSuccess: () => {
-        setConfirmDialog({ open: false, planName: "", planDisplayName: "", isUpgrade: true });
-      },
+  const getPriceIdForPlan = (planName: string): string | undefined => {
+    const product = billingProducts.find(p => p.name.toLowerCase().includes(planName.toLowerCase()));
+    return product?.priceId;
+  };
+
+  const handlePlanAction = async () => {
+    const { planName, isUpgrade, isFree, priceId } = confirmDialog;
+
+    try {
+      if (isFree) {
+        if (isPaidPlan) {
+          const result = await createPortal.mutateAsync();
+          window.location.href = result.url;
+        } else {
+          await changePlan.mutateAsync(planName);
+          toast.success("Plano alterado com sucesso!");
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      } else if (isUpgrade && priceId) {
+        const result = await createCheckout.mutateAsync(priceId);
+        window.location.href = result.url;
+      } else if (!isUpgrade && isPaidPlan) {
+        const result = await createPortal.mutateAsync();
+        window.location.href = result.url;
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao processar a solicitação");
+    }
+  };
+
+  const openConfirmDialog = (plan: typeof plans[0], index: number) => {
+    const isUpgrade = index > currentPlanIndex;
+    const isFree = Number(plan.price) === 0;
+    const priceId = getPriceIdForPlan(plan.name);
+
+    setConfirmDialog({
+      open: true,
+      planName: plan.name,
+      planDisplayName: plan.displayName,
+      isUpgrade,
+      isFree,
+      priceId,
     });
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      const result = await createPortal.mutateAsync();
+      window.location.href = result.url;
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao abrir portal de pagamentos");
+    }
   };
 
   const statusInfo = statusConfig[status] || statusConfig.active;
@@ -127,11 +187,26 @@ export default function PlanPage() {
 
             {currentPlan?.price && Number(currentPlan.price) > 0 && (
               <div className="pt-4 border-t">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-gray-900">
-                    R$ {Number(currentPlan.price).toFixed(2).replace(".", ",")}
-                  </span>
-                  <span className="text-gray-500">/mês</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-gray-900">
+                      R$ {Number(currentPlan.price).toFixed(2).replace(".", ",")}
+                    </span>
+                    <span className="text-gray-500">/mês</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleManageSubscription}
+                    disabled={createPortal.isPending}
+                    data-testid="btn-manage-subscription"
+                  >
+                    {createPortal.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="w-4 h-4 mr-2" />
+                    )}
+                    Gerenciar assinatura
+                  </Button>
                 </div>
               </div>
             )}
@@ -144,6 +219,9 @@ export default function PlanPage() {
             {plans.map((plan, index) => {
               const isCurrentPlan = plan.id === currentPlan?.id;
               const isUpgrade = index > currentPlanIndex;
+              const isFree = Number(plan.price) === 0;
+              const priceId = getPriceIdForPlan(plan.name);
+              const canUpgrade = isUpgrade && !isFree && priceId;
               
               return (
                 <Card 
@@ -163,7 +241,7 @@ export default function PlanPage() {
                     <CardTitle className="text-lg">{plan.displayName}</CardTitle>
                     <CardDescription className="text-sm">{plan.description}</CardDescription>
                     <div className="pt-2">
-                      {Number(plan.price) === 0 ? (
+                      {isFree ? (
                         <span className="text-2xl font-bold text-gray-900">Grátis</span>
                       ) : (
                         <div className="flex items-baseline gap-1">
@@ -188,25 +266,19 @@ export default function PlanPage() {
                     {!isCurrentPlan && (
                       <Button
                         data-testid={`btn-change-${plan.name}`}
-                        onClick={() => setConfirmDialog({ 
-                          open: true, 
-                          planName: plan.name, 
-                          planDisplayName: plan.displayName,
-                          isUpgrade 
-                        })}
+                        onClick={() => openConfirmDialog(plan, index)}
                         variant={isUpgrade ? "default" : "outline"}
-                        className={`w-full mt-4 ${isUpgrade ? "bg-rose-600 hover:bg-rose-700" : ""}`}
+                        className={`w-full mt-4 ${isUpgrade && !isFree ? "bg-rose-600 hover:bg-rose-700" : ""}`}
                       >
-                        {isUpgrade ? (
+                        {isUpgrade && !isFree ? (
                           <>
                             <ArrowUp className="w-4 h-4 mr-2" />
-                            Fazer upgrade
+                            Assinar plano
                           </>
+                        ) : isFree ? (
+                          "Usar plano gratuito"
                         ) : (
-                          <>
-                            <ArrowDown className="w-4 h-4 mr-2" />
-                            Mudar para este plano
-                          </>
+                          "Mudar para este plano"
                         )}
                       </Button>
                     )}
@@ -222,28 +294,64 @@ export default function PlanPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {confirmDialog.isUpgrade ? "Confirmar upgrade" : "Confirmar mudança de plano"}
+              {confirmDialog.isUpgrade && !confirmDialog.isFree 
+                ? "Confirmar assinatura" 
+                : confirmDialog.isFree && isPaidPlan
+                  ? "Cancelar assinatura"
+                  : "Confirmar mudança de plano"
+              }
             </DialogTitle>
             <DialogDescription>
-              {confirmDialog.isUpgrade 
-                ? `Você está prestes a fazer upgrade para o plano ${confirmDialog.planDisplayName}. Você terá acesso a todos os recursos do novo plano imediatamente.`
-                : `Você está prestes a mudar para o plano ${confirmDialog.planDisplayName}. Alguns recursos podem deixar de estar disponíveis.`
-              }
+              {confirmDialog.isUpgrade && !confirmDialog.isFree ? (
+                <>
+                  Você será redirecionado para a página de pagamento seguro para assinar o plano <strong>{confirmDialog.planDisplayName}</strong>.
+                  <br /><br />
+                  <span className="text-sm text-gray-500 flex items-center gap-1">
+                    <CreditCard className="w-4 h-4" />
+                    Pagamento processado de forma segura via Stripe
+                  </span>
+                </>
+              ) : confirmDialog.isFree && isPaidPlan ? (
+                <>
+                  Você será redirecionado para o portal de assinaturas onde poderá cancelar seu plano atual e voltar para o plano gratuito.
+                  <br /><br />
+                  <span className="text-sm text-amber-600">
+                    Ao cancelar, você perderá acesso aos recursos premium no final do período atual.
+                  </span>
+                </>
+              ) : (
+                `Você está prestes a mudar para o plano ${confirmDialog.planDisplayName}.`
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+              disabled={isProcessing}
             >
               Cancelar
             </Button>
             <Button
-              onClick={() => handleChangePlan(confirmDialog.planName)}
-              disabled={changePlan.isPending}
-              className={confirmDialog.isUpgrade ? "bg-rose-600 hover:bg-rose-700" : ""}
+              onClick={handlePlanAction}
+              disabled={isProcessing}
+              className={confirmDialog.isUpgrade && !confirmDialog.isFree ? "bg-rose-600 hover:bg-rose-700" : ""}
             >
-              {changePlan.isPending ? "Processando..." : "Confirmar"}
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : confirmDialog.isUpgrade && !confirmDialog.isFree ? (
+                <>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Ir para pagamento
+                </>
+              ) : confirmDialog.isFree && isPaidPlan ? (
+                "Gerenciar assinatura"
+              ) : (
+                "Confirmar"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -369,6 +369,26 @@ export function useSyncPlan() {
   });
 }
 
+// ============ BILLING ============
+export function useBillingProducts() {
+  return useQuery({
+    queryKey: ["billing-products"],
+    queryFn: api.getBillingProducts,
+  });
+}
+
+export function useCreateCheckout() {
+  return useMutation({
+    mutationFn: (priceId: string) => api.createCheckoutSession(priceId),
+  });
+}
+
+export function useCreatePortal() {
+  return useMutation({
+    mutationFn: () => api.createPortalSession(),
+  });
+}
+
 // ============ COMPANY ============
 export function useUpdateCompany() {
   const queryClient = useQueryClient();
