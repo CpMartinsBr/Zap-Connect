@@ -67,20 +67,18 @@ export default function PlanPage() {
 
     try {
       if (isFree) {
-        if (isPaidPlan) {
-          const result = await createPortal.mutateAsync();
+        await changePlan.mutateAsync(planName);
+        toast.success("Plano alterado para gratuito!");
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+      } else if (priceId) {
+        const result = await createCheckout.mutateAsync(priceId);
+        if (result.url) {
           window.location.href = result.url;
         } else {
-          await changePlan.mutateAsync(planName);
-          toast.success("Plano alterado com sucesso!");
-          setConfirmDialog(prev => ({ ...prev, open: false }));
+          toast.error("Erro ao criar sessão de pagamento");
         }
-      } else if (isUpgrade && priceId) {
-        const result = await createCheckout.mutateAsync(priceId);
-        window.location.href = result.url;
-      } else if (!isUpgrade && isPaidPlan) {
-        const result = await createPortal.mutateAsync();
-        window.location.href = result.url;
+      } else {
+        toast.error("Produto de pagamento não encontrado");
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao processar a solicitação");
@@ -105,9 +103,15 @@ export default function PlanPage() {
   const handleManageSubscription = async () => {
     try {
       const result = await createPortal.mutateAsync();
-      window.location.href = result.url;
+      if (result.url) {
+        window.location.href = result.url;
+      }
     } catch (error: any) {
-      toast.error(error.message || "Erro ao abrir portal de pagamentos");
+      if (error.message.includes("No billing account")) {
+        toast.error("Nenhuma assinatura ativa encontrada. Seu plano foi configurado manualmente.");
+      } else {
+        toast.error(error.message || "Erro ao abrir portal de pagamentos");
+      }
     }
   };
 
@@ -294,15 +298,21 @@ export default function PlanPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {confirmDialog.isUpgrade && !confirmDialog.isFree 
-                ? "Confirmar assinatura" 
-                : confirmDialog.isFree && isPaidPlan
-                  ? "Cancelar assinatura"
-                  : "Confirmar mudança de plano"
+              {confirmDialog.isFree 
+                ? "Mudar para plano Gratuito" 
+                : "Assinar plano"
               }
             </DialogTitle>
             <DialogDescription>
-              {confirmDialog.isUpgrade && !confirmDialog.isFree ? (
+              {confirmDialog.isFree ? (
+                <>
+                  Você está prestes a mudar para o plano <strong>Gratuito</strong>.
+                  <br /><br />
+                  <span className="text-sm text-amber-600">
+                    Ao mudar, você perderá acesso aos recursos premium imediatamente.
+                  </span>
+                </>
+              ) : (
                 <>
                   Você será redirecionado para a página de pagamento seguro para assinar o plano <strong>{confirmDialog.planDisplayName}</strong>.
                   <br /><br />
@@ -311,16 +321,6 @@ export default function PlanPage() {
                     Pagamento processado de forma segura via Stripe
                   </span>
                 </>
-              ) : confirmDialog.isFree && isPaidPlan ? (
-                <>
-                  Você será redirecionado para o portal de assinaturas onde poderá cancelar seu plano atual e voltar para o plano gratuito.
-                  <br /><br />
-                  <span className="text-sm text-amber-600">
-                    Ao cancelar, você perderá acesso aos recursos premium no final do período atual.
-                  </span>
-                </>
-              ) : (
-                `Você está prestes a mudar para o plano ${confirmDialog.planDisplayName}.`
               )}
             </DialogDescription>
           </DialogHeader>
@@ -335,22 +335,20 @@ export default function PlanPage() {
             <Button
               onClick={handlePlanAction}
               disabled={isProcessing}
-              className={confirmDialog.isUpgrade && !confirmDialog.isFree ? "bg-rose-600 hover:bg-rose-700" : ""}
+              className={!confirmDialog.isFree ? "bg-rose-600 hover:bg-rose-700" : ""}
             >
               {isProcessing ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processando...
                 </>
-              ) : confirmDialog.isUpgrade && !confirmDialog.isFree ? (
+              ) : confirmDialog.isFree ? (
+                "Confirmar mudança"
+              ) : (
                 <>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Ir para pagamento
                 </>
-              ) : confirmDialog.isFree && isPaidPlan ? (
-                "Gerenciar assinatura"
-              ) : (
-                "Confirmar"
               )}
             </Button>
           </DialogFooter>
