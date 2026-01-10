@@ -345,7 +345,8 @@ export async function createPortalSession(): Promise<PortalSession> {
 }
 
 export async function getBillingProducts(): Promise<{ id: string; name: string; price: number; priceId: string; interval: string }[]> {
-  return fetchAPI("/api/billing/products");
+  const result = await fetchAPI("/api/billing/products");
+  return result?.products || [];
 }
 
 // ============ COMPANY ============
